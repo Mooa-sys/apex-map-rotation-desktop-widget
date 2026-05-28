@@ -5,8 +5,25 @@ import {
   minutesUntilRangeEnd,
   parseClockRange
 } from '../src/shared/mapRotation';
+import { allMaps, rankedRotationConfig } from '../src/shared/mapConfig';
 
 describe('local map rotation', () => {
+  it('keeps supported maps and three ranked rotation maps configurable', () => {
+    expect(allMaps.map((map) => map.mapZh)).toEqual([
+      '奥林匹斯',
+      '残月',
+      '诸王峡谷',
+      '风暴点',
+      '世界尽头',
+      '电力区域'
+    ]);
+    expect(rankedRotationConfig.rankedMapNames).toEqual([
+      'Broken Moon',
+      'Storm Point',
+      'Olympus'
+    ]);
+  });
+
   it('uses 2026-05-25 16:00 as Broken Moon anchor time', () => {
     const data = getLocalMapRotation(new Date(2026, 4, 25, 16, 0, 0));
 
@@ -16,7 +33,7 @@ describe('local map rotation', () => {
     expect(data.current.start).toBe('16:00');
     expect(data.current.end).toBe('20:30');
     expect(data.upcoming.map((entry) => entry.map).slice(0, 3)).toEqual([
-      'Kings Canyon',
+      'Storm Point',
       'Olympus',
       'Broken Moon'
     ]);
@@ -24,7 +41,7 @@ describe('local map rotation', () => {
 
   it('rotates every 4.5 hours in the configured order', () => {
     expect(getLocalMapRotation(new Date(2026, 4, 25, 20, 29)).current.map).toBe('Broken Moon');
-    expect(getLocalMapRotation(new Date(2026, 4, 25, 20, 30)).current.map).toBe('Kings Canyon');
+    expect(getLocalMapRotation(new Date(2026, 4, 25, 20, 30)).current.map).toBe('Storm Point');
     expect(getLocalMapRotation(new Date(2026, 4, 26, 1, 0)).current.map).toBe('Olympus');
     expect(getLocalMapRotation(new Date(2026, 4, 26, 5, 30)).current.map).toBe('Broken Moon');
   });

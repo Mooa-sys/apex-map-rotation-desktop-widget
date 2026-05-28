@@ -1,3 +1,9 @@
+import {
+  allMaps,
+  getRankedRotationMaps,
+  rankedRotationConfig
+} from './mapConfig';
+
 export type RotationEntry = {
   map: string;
   mapZh: string;
@@ -22,26 +28,17 @@ export type RotationResponse = {
   isStale: boolean;
 };
 
-type LocalMap = {
-  map: string;
-  mapZh: string;
-};
-
-export const LOCAL_ROTATION_SLOT_MINUTES = 270;
+export const LOCAL_ROTATION_SLOT_MINUTES = rankedRotationConfig.slotMinutes;
 const SLOT_MS = LOCAL_ROTATION_SLOT_MINUTES * 60 * 1000;
-const UPCOMING_COUNT = 5;
+const UPCOMING_COUNT = rankedRotationConfig.upcomingCount;
 
-export const LOCAL_ROTATION_TITLE = '本地排位地图轮换';
-export const LOCAL_ROTATION_ANCHOR = new Date(2026, 4, 25, 16, 0, 0, 0);
+export const LOCAL_ROTATION_TITLE = rankedRotationConfig.title;
+export const LOCAL_ROTATION_ANCHOR = rankedRotationConfig.anchor;
 
-const LOCAL_ROTATION_MAPS: LocalMap[] = [
-  { map: 'Broken Moon', mapZh: '残月' },
-  { map: 'Kings Canyon', mapZh: '诸王峡谷' },
-  { map: 'Olympus', mapZh: '奥林匹斯' }
-];
+const LOCAL_ROTATION_MAPS = getRankedRotationMaps();
 
 const MAP_NAMES_ZH: Record<string, string> = Object.fromEntries(
-  LOCAL_ROTATION_MAPS.map(({ map, mapZh }) => [map, mapZh])
+  allMaps.map(({ map, mapZh }) => [map, mapZh])
 );
 
 export function getLocalizedMapName(map: string): string {

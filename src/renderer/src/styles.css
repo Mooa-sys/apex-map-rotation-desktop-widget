@@ -10,6 +10,8 @@
 
 * {
   box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 html,
@@ -19,6 +21,22 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.compact-mode,
+body.compact-mode #root {
+  width: 300px;
+  height: 96px;
+}
+
+html.compact-mode,
+html.compact-mode body,
+html.compact-mode #root {
+  width: 300px;
+  height: 96px;
+  background: transparent;
 }
 
 button {
@@ -37,6 +55,19 @@ button {
     linear-gradient(315deg, rgba(30, 164, 159, 0.16), transparent 34%),
     #111317;
   border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.widget-shell.compact {
+  grid-template-rows: 1fr;
+  gap: 0;
+  width: 300px;
+  height: 96px;
+  padding: 6px;
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(219, 49, 62, 0.16), transparent 42%),
+    linear-gradient(270deg, rgba(30, 164, 159, 0.14), transparent 44%),
+    #111317;
 }
 
 .titlebar {
@@ -123,6 +154,18 @@ button {
   overflow: hidden;
 }
 
+.compact .current-panel {
+  grid-template-columns: minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 10px 10px 10px 14px;
+  border-radius: 16px;
+  cursor: default;
+}
+
 .current-panel::before {
   position: absolute;
   inset: 0;
@@ -148,6 +191,18 @@ button {
   --current-map-bg: url('/map-backgrounds/olympus.jpg');
 }
 
+.map-bg-storm-point {
+  --current-map-bg: url('/map-backgrounds/storm-point.jpg');
+}
+
+.map-bg-worlds-edge {
+  --current-map-bg: url('/map-backgrounds/worlds-edge.jpg');
+}
+
+.map-bg-e-district {
+  --current-map-bg: url('/map-backgrounds/e-district.jpg');
+}
+
 .current-copy {
   position: relative;
   z-index: 1;
@@ -171,6 +226,11 @@ h1 {
   letter-spacing: 0;
 }
 
+.compact h1 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
 .time-row {
   display: flex;
   align-items: center;
@@ -188,6 +248,7 @@ h1 {
 }
 
 .countdown-clock {
+  -webkit-app-region: no-drag;
   position: relative;
   z-index: 1;
   display: grid;
@@ -199,12 +260,24 @@ h1 {
   margin-top: -4px;
 }
 
+.compact .countdown-clock {
+  width: 68px;
+  height: 68px;
+  align-self: center;
+  margin-top: 0;
+}
+
 .countdown-clock svg {
   position: absolute;
   inset: 0;
   width: 100px;
   height: 100px;
   transform: rotate(-90deg);
+}
+
+.compact .countdown-clock svg {
+  width: 68px;
+  height: 68px;
 }
 
 .countdown-track,
@@ -231,6 +304,10 @@ h1 {
   letter-spacing: 0;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72);
   white-space: nowrap;
+}
+
+.compact .countdown-clock strong {
+  font-size: 13px;
 }
 
 .countdown-progress-animated {

@@ -1,5 +1,5 @@
 import { AlertTriangle, Clock3, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
-import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   formatCountdown,
   formatMapName,
@@ -8,6 +8,7 @@ import {
   minutesUntilRangeEnd,
   type RotationResponse
 } from '../../shared/mapRotation';
+import { getApexMapByName } from '../../shared/mapConfig';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -30,8 +31,10 @@ export function App(): JSX.Element {
     isStale: false
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isCompact, setIsCompact] = useState(false);
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
+  const isDraggingRef = useRef(false);
 
   const loadRotation = useCallback(async (force = false, animateClock = false) => {
     if (animateClock) {
@@ -77,20 +80,63 @@ export function App(): JSX.Element {
   const next = rotation.data?.upcoming[0];
   const currentMapClass = current ? getCurrentMapClass(current.map) : '';
   const canControlWindow = Boolean(window.apexMap);
+  const shellStyle = (isCompact
+    ? {
+        width: 300,
+        height: 96
+      }
+    : undefined) satisfies CSSProperties | undefined;
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('compact-mode', isCompact);
+    document.body.classList.toggle('compact-mode', isCompact);
+    window.apexMap?.setCompactMode(isCompact);
+    const resizeId = window.setTimeout(() => {
+      window.apexMap?.setCompactMode(isCompact);
+    }, 120);
+
+    return () => {
+      window.clearTimeout(resizeId);
+      document.documentElement.classList.remove('compact-mode');
+      document.body.classList.remove('compact-mode');
+    };
+  }, [isCompact]);
+
+  const toggleCompactMode = useCallback(() => {
+    setIsCompact((previous) => !previous);
+  }, []);
+
+  const startCompactDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (!isCompact || event.button !== 0) return;
+    isDraggingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    window.apexMap?.startDrag();
+  }, [isCompact]);
+
+  const moveCompactDrag = useCallback(() => {
+    if (!isDraggingRef.current) return;
+    window.apexMap?.moveDrag();
+  }, []);
+
+  const endCompactDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    window.apexMap?.endDrag();
+  }, []);
 
   return (
-    <main className="widget-shell">
-      <header className="titlebar">
+    <main className={`widget-shell ${isCompact ? 'compact' : ''}`} style={shellStyle}>
+      {!isCompact && <header className="titlebar">
         <div className="drag-region">
           <Swords aria-hidden="true" size={16} />
           <span>Apex 排位地图</span>
         </div>
         <div className="window-actions">
           <button
-            aria-label="最小化"
+            aria-label="简洁模式"
             className="icon-button"
-            disabled={!canControlWindow}
-            onClick={() => window.apexMap?.minimize()}
+            onClick={toggleCompactMode}
           >
             <Minimize2 size={15} />
           </button>
@@ -103,33 +149,46 @@ export function App(): JSX.Element {
             <X size={15} />
           </button>
         </div>
-      </header>
+      </header>}
 
-      <section className={`current-panel ${currentMapClass}`} aria-live="polite">
+      <section
+        className={`current-panel ${currentMapClass}`}
+        aria-live="polite"
+        onPointerDown={startCompactDrag}
+        onPointerMove={moveCompactDrag}
+        onPointerUp={endCompactDrag}
+        onPointerCancel={endCompactDrag}
+        onDoubleClick={() => {
+          if (isCompact) toggleCompactMode();
+        }}
+      >
         <div className="current-copy">
           <div className="section-label">当前排位地图</div>
           <h1>{current ? formatMapName(current.map) : rotation.error ? '暂无地图数据' : '加载中'}</h1>
-          <div className="time-row">
+          {!isCompact && <div className="time-row">
             <Clock3 size={15} />
             <span>{current ? `${current.start} - ${current.end}` : rotation.error ?? '--:-- - --:--'}</span>
-          </div>
+          </div>}
         </div>
         <CountdownClock
           animationKey={clockAnimationKey}
           minutes={countdownMinutes}
           fallback={countdown}
+          onDoubleClick={() => {
+            if (isCompact) toggleCompactMode();
+          }}
         />
       </section>
 
-      <section className="next-panel">
+      {!isCompact && <section className="next-panel">
         <div>
           <div className="section-label">下一张</div>
           <strong>{next ? formatMapName(next.map) : '等待数据'}</strong>
         </div>
         <span>{next ? `${next.start} 开始` : '--:--'}</span>
-      </section>
+      </section>}
 
-      <footer className="statusbar">
+      {!isCompact && <footer className="statusbar">
         <button aria-label="刷新地图数据" className="refresh-button" onClick={() => loadRotation(true, true)}>
           <RefreshCw className={isLoading ? 'spinning' : ''} size={14} />
         </button>
@@ -142,7 +201,7 @@ export function App(): JSX.Element {
             {rotation.isStale ? '显示缓存' : '刷新失败'}
           </span>
         )}
-      </footer>
+      </footer>}
     </main>
   );
 }
@@ -150,11 +209,13 @@ export function App(): JSX.Element {
 function CountdownClock({
   animationKey,
   minutes,
-  fallback
+  fallback,
+  onDoubleClick
 }: {
   animationKey: number;
   minutes: number | null;
   fallback: string;
+  onDoubleClick?: () => void;
 }): JSX.Element {
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
@@ -173,6 +234,7 @@ function CountdownClock({
     <div
       className="countdown-clock"
       aria-label={`地图切换倒计时：${fallback}`}
+      onDoubleClick={onDoubleClick}
     >
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <circle className="countdown-track" cx="50" cy="50" r={radius} />
@@ -228,14 +290,5 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function getCurrentMapClass(map: string): string {
-  switch (map) {
-    case 'Broken Moon':
-      return 'map-bg-broken-moon';
-    case 'Kings Canyon':
-      return 'map-bg-kings-canyon';
-    case 'Olympus':
-      return 'map-bg-olympus';
-    default:
-      return '';
-  }
+  return getApexMapByName(map)?.backgroundClass ?? '';
 }
