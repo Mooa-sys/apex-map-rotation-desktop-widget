@@ -2,6 +2,7 @@
   "name": "apex-mapchange",
   "version": "0.1.0",
   "description": "A small Windows desktop widget for Apex Legends ranked map rotation.",
+  "license": "MIT",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
