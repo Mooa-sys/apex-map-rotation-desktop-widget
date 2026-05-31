@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatCountdown,
+  formatMapName,
   getLocalMapRotation,
   minutesUntilRangeEnd,
   parseClockRange
@@ -72,6 +73,7 @@ describe('countdown helpers', () => {
     const now = new Date(2026, 4, 19, 8, 15);
     expect(minutesUntilRangeEnd(now, '05:00', '09:30')).toBe(75);
     expect(formatCountdown(75)).toBe('1小时15分后切换');
+    expect(formatCountdown(75, 'en')).toBe('Switches in 1h 15m');
   });
 
   it('counts down across midnight', () => {
@@ -80,5 +82,11 @@ describe('countdown helpers', () => {
 
     expect(minutesUntilRangeEnd(beforeMidnight, '23:00', '03:30')).toBe(225);
     expect(minutesUntilRangeEnd(afterMidnight, '23:00', '03:30')).toBe(75);
+  });
+
+  it('formats map names by selected language', () => {
+    expect(formatMapName('Broken Moon', 'zh')).toBe('残月');
+    expect(formatMapName('Broken Moon', 'en')).toBe('Broken Moon');
+    expect(formatMapName('Broken Moon')).toBe('残月 / Broken Moon');
   });
 });

@@ -28,6 +28,8 @@ export type RotationResponse = {
   isStale: boolean;
 };
 
+export type DisplayLanguage = 'zh' | 'en';
+
 export const LOCAL_ROTATION_SLOT_MINUTES = rankedRotationConfig.slotMinutes;
 const SLOT_MS = LOCAL_ROTATION_SLOT_MINUTES * 60 * 1000;
 const UPCOMING_COUNT = rankedRotationConfig.upcomingCount;
@@ -45,8 +47,10 @@ export function getLocalizedMapName(map: string): string {
   return MAP_NAMES_ZH[map] ?? map;
 }
 
-export function formatMapName(map: string): string {
+export function formatMapName(map: string, language?: DisplayLanguage): string {
   const zh = getLocalizedMapName(map);
+  if (language === 'zh') return zh;
+  if (language === 'en') return map;
   return zh === map ? map : `${zh} / ${map}`;
 }
 
@@ -80,7 +84,8 @@ export function minutesUntilRangeEnd(now: Date, start: string, end: string): num
   return 24 * 60 - nowMinutes + endMinutes;
 }
 
-export function formatCountdown(minutes: number): string {
+export function formatCountdown(minutes: number, language: DisplayLanguage = 'zh'): string {
+  if (language === 'en') return formatCountdownEn(minutes);
   if (minutes <= 0) return '即将切换';
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
@@ -91,6 +96,19 @@ export function formatCountdown(minutes: number): string {
     mins ? `${mins}分` : ''
   ].filter(Boolean);
   return `${parts.join('') || '不到1分'}后切换`;
+}
+
+function formatCountdownEn(minutes: number): string {
+  if (minutes <= 0) return 'Switching soon';
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+  const parts = [
+    days ? `${days}d` : '',
+    hours ? `${hours}h` : '',
+    mins ? `${mins}m` : ''
+  ].filter(Boolean);
+  return `Switches in ${parts.join(' ') || '<1m'}`;
 }
 
 export function parseClockRange(range: string): { start: string; end: string } | null {

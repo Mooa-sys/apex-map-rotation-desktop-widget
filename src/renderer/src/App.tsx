@@ -1,6 +1,7 @@
-import { AlertTriangle, Clock3, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
+import { AlertTriangle, Clock3, Languages, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type DisplayLanguage,
   formatCountdown,
   formatMapName,
   getLocalMapRotation,
@@ -11,6 +12,80 @@ import {
 import { getApexMapByName } from '../../shared/mapConfig';
 
 const REFRESH_INTERVAL_MS = 60_000;
+const LANGUAGE_STORAGE_KEY = 'apex-map-language';
+
+type LanguageCopy = {
+  appTitle: string;
+  compactMode: string;
+  close: string;
+  currentMap: string;
+  noMapData: string;
+  loading: string;
+  loadFailed: string;
+  fetching: string;
+  nextMap: string;
+  waitingData: string;
+  startsAt: (time: string) => string;
+  refreshMapData: string;
+  updatedAt: (time: string) => string;
+  notUpdated: string;
+  showingCache: string;
+  refreshFailed: string;
+  refreshErrorMessage: string;
+  switchLanguage: string;
+  countdownAria: (value: string) => string;
+  htmlLang: string;
+  timeLocale: string;
+};
+
+const LANGUAGE_COPY: Record<DisplayLanguage, LanguageCopy> = {
+  zh: {
+    appTitle: 'Apex 排位地图',
+    compactMode: '简洁模式',
+    close: '关闭',
+    currentMap: '当前排位地图',
+    noMapData: '暂无地图数据',
+    loading: '加载中',
+    loadFailed: '获取失败',
+    fetching: '正在获取',
+    nextMap: '下一张',
+    waitingData: '等待数据',
+    startsAt: (time) => `${time} 开始`,
+    refreshMapData: '刷新地图数据',
+    updatedAt: (time) => `更新于 ${time}`,
+    notUpdated: '尚未更新',
+    showingCache: '显示缓存',
+    refreshFailed: '刷新失败',
+    refreshErrorMessage: '地图数据刷新失败',
+    switchLanguage: 'Switch to English',
+    countdownAria: (value) => `地图切换倒计时：${value}`,
+    htmlLang: 'zh-CN',
+    timeLocale: 'zh-CN'
+  },
+  en: {
+    appTitle: 'Apex Ranked Maps',
+    compactMode: 'Compact mode',
+    close: 'Close',
+    currentMap: 'Current ranked map',
+    noMapData: 'No map data',
+    loading: 'Loading',
+    loadFailed: 'Fetch failed',
+    fetching: 'Fetching',
+    nextMap: 'Next map',
+    waitingData: 'Waiting for data',
+    startsAt: (time) => `Starts at ${time}`,
+    refreshMapData: 'Refresh map data',
+    updatedAt: (time) => `Updated at ${time}`,
+    notUpdated: 'Not updated yet',
+    showingCache: 'Showing cache',
+    refreshFailed: 'Refresh failed',
+    refreshErrorMessage: 'Failed to refresh map data',
+    switchLanguage: '切换到中文',
+    countdownAria: (value) => `Map rotation countdown: ${value}`,
+    htmlLang: 'en',
+    timeLocale: 'en-US'
+  }
+};
 
 async function getMapRotation(force = false): Promise<RotationResponse> {
   if (window.apexMap) {
@@ -30,11 +105,13 @@ export function App(): JSX.Element {
     error: null,
     isStale: false
   });
+  const [language, setLanguage] = useState<DisplayLanguage>(() => getInitialLanguage());
   const [isLoading, setIsLoading] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const isDraggingRef = useRef(false);
+  const t = LANGUAGE_COPY[language];
 
   const loadRotation = useCallback(async (force = false, animateClock = false) => {
     if (animateClock) {
@@ -47,13 +124,19 @@ export function App(): JSX.Element {
     } catch (error) {
       setRotation((previous) => ({
         data: previous.data,
-        error: error instanceof Error ? error.message : '地图数据刷新失败',
+        error: error instanceof Error ? error.message : t.refreshErrorMessage,
         isStale: Boolean(previous.data)
       }));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t.refreshErrorMessage]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = t.htmlLang;
+    document.title = t.appTitle;
+  }, [language, t.appTitle, t.htmlLang]);
 
   useEffect(() => {
     loadRotation(true, true);
@@ -66,10 +149,10 @@ export function App(): JSX.Element {
   }, [loadRotation]);
 
   const countdown = useMemo(() => {
-    if (!rotation.data) return rotation.error ? '获取失败' : '正在获取';
+    if (!rotation.data) return rotation.error ? t.loadFailed : t.fetching;
     const minutes = minutesUntilRangeEnd(now, rotation.data.current.start, rotation.data.current.end);
-    return formatCountdown(minutes);
-  }, [now, rotation.data]);
+    return formatCountdown(minutes, language);
+  }, [language, now, rotation.data, rotation.error, t.fetching, t.loadFailed]);
 
   const countdownMinutes = useMemo(() => {
     if (!rotation.data) return null;
@@ -106,6 +189,10 @@ export function App(): JSX.Element {
     setIsCompact((previous) => !previous);
   }, []);
 
+  const toggleLanguage = useCallback(() => {
+    setLanguage((previous) => (previous === 'zh' ? 'en' : 'zh'));
+  }, []);
+
   const startCompactDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (!isCompact || event.button !== 0) return;
     isDraggingRef.current = true;
@@ -130,20 +217,30 @@ export function App(): JSX.Element {
       {!isCompact && <header className="titlebar">
         <div className="drag-region">
           <Swords aria-hidden="true" size={16} />
-          <span>Apex 排位地图</span>
+          <span>{t.appTitle}</span>
         </div>
         <div className="window-actions">
           <button
-            aria-label="简洁模式"
+            aria-label={t.switchLanguage}
             className="icon-button"
+            title={t.switchLanguage}
+            onClick={toggleLanguage}
+          >
+            <Languages size={15} />
+          </button>
+          <button
+            aria-label={t.compactMode}
+            className="icon-button"
+            title={t.compactMode}
             onClick={toggleCompactMode}
           >
             <Minimize2 size={15} />
           </button>
           <button
-            aria-label="关闭"
+            aria-label={t.close}
             className="icon-button close"
             disabled={!canControlWindow}
+            title={t.close}
             onClick={() => window.apexMap?.close()}
           >
             <X size={15} />
@@ -163,8 +260,8 @@ export function App(): JSX.Element {
         }}
       >
         <div className="current-copy">
-          <div className="section-label">当前排位地图</div>
-          <h1>{current ? formatMapName(current.map) : rotation.error ? '暂无地图数据' : '加载中'}</h1>
+          <div className="section-label">{t.currentMap}</div>
+          <h1>{current ? formatMapName(current.map, language) : rotation.error ? t.noMapData : t.loading}</h1>
           {!isCompact && <div className="time-row">
             <Clock3 size={15} />
             <span>{current ? `${current.start} - ${current.end}` : rotation.error ?? '--:-- - --:--'}</span>
@@ -174,6 +271,8 @@ export function App(): JSX.Element {
           animationKey={clockAnimationKey}
           minutes={countdownMinutes}
           fallback={countdown}
+          ariaLabel={t.countdownAria(countdown)}
+          language={language}
           onDoubleClick={() => {
             if (isCompact) toggleCompactMode();
           }}
@@ -182,23 +281,33 @@ export function App(): JSX.Element {
 
       {!isCompact && <section className="next-panel">
         <div>
-          <div className="section-label">下一张</div>
-          <strong>{next ? formatMapName(next.map) : '等待数据'}</strong>
+          <div className="section-label">{t.nextMap}</div>
+          <strong>{next ? formatMapName(next.map, language) : t.waitingData}</strong>
         </div>
-        <span>{next ? `${next.start} 开始` : '--:--'}</span>
+        <span>{next ? t.startsAt(next.start) : '--:--'}</span>
       </section>}
 
       {!isCompact && <footer className="statusbar">
-        <button aria-label="刷新地图数据" className="refresh-button" onClick={() => loadRotation(true, true)}>
+        <button
+          aria-label={t.refreshMapData}
+          className="refresh-button"
+          title={t.refreshMapData}
+          onClick={() => loadRotation(true, true)}
+        >
           <RefreshCw className={isLoading ? 'spinning' : ''} size={14} />
         </button>
         <span>
-          {rotation.data ? `更新于 ${new Date(rotation.data.fetchedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '尚未更新'}
+          {rotation.data
+            ? t.updatedAt(new Date(rotation.data.fetchedAt).toLocaleTimeString(t.timeLocale, {
+                hour: '2-digit',
+                minute: '2-digit'
+              }))
+            : t.notUpdated}
         </span>
         {rotation.error && (
           <span className="error" title={rotation.error}>
             <AlertTriangle size={13} />
-            {rotation.isStale ? '显示缓存' : '刷新失败'}
+            {rotation.isStale ? t.showingCache : t.refreshFailed}
           </span>
         )}
       </footer>}
@@ -210,11 +319,15 @@ function CountdownClock({
   animationKey,
   minutes,
   fallback,
+  ariaLabel,
+  language,
   onDoubleClick
 }: {
   animationKey: number;
   minutes: number | null;
   fallback: string;
+  ariaLabel: string;
+  language: DisplayLanguage;
   onDoubleClick?: () => void;
 }): JSX.Element {
   const radius = 40;
@@ -233,7 +346,7 @@ function CountdownClock({
   return (
     <div
       className="countdown-clock"
-      aria-label={`地图切换倒计时：${fallback}`}
+      aria-label={ariaLabel}
       onDoubleClick={onDoubleClick}
     >
       <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -249,15 +362,19 @@ function CountdownClock({
           style={progressStyle}
         />
       </svg>
-      <strong>{minutes === null ? '--' : formatCompactCountdown(minutes)}</strong>
+      <strong>{minutes === null ? '--' : formatCompactCountdown(minutes, language)}</strong>
     </div>
   );
 }
 
-function formatCompactCountdown(minutes: number): string {
-  if (minutes <= 0) return '0m';
+function formatCompactCountdown(minutes: number, language: DisplayLanguage): string {
+  if (minutes <= 0) return language === 'zh' ? '0分' : '0m';
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
+  if (language === 'zh') {
+    if (hours <= 0) return `${mins}分`;
+    return `${hours}时${mins.toString().padStart(2, '0')}分`;
+  }
   if (hours <= 0) return `${mins}m`;
   return `${hours}h ${mins.toString().padStart(2, '0')}m`;
 }
@@ -291,4 +408,9 @@ function hexToRgb(hex: string): [number, number, number] {
 
 function getCurrentMapClass(map: string): string {
   return getApexMapByName(map)?.backgroundClass ?? '';
+}
+
+function getInitialLanguage(): DisplayLanguage {
+  const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  return storedLanguage === 'en' || storedLanguage === 'zh' ? storedLanguage : 'zh';
 }
