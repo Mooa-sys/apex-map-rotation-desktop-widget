@@ -204,7 +204,7 @@ function createWindow(): void {
     resizable: false,
     alwaysOnTop: true,
     show: false,
-    title: 'Apex Map Change',
+    title: PRODUCT_NAME,
     backgroundColor: '#00000000',
     transparent: true,
     webPreferences: {

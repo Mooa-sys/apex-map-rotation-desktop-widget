@@ -10,7 +10,6 @@
     "generate:icon": "node scripts/generate-icon.mjs",
     "build": "npm run typecheck && electron-vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
     "package:win": "npm run generate:icon && npm run build && electron-builder --win dir",
     "package:portable": "npm run generate:icon && npm run build && electron-builder --win portable"
   },
@@ -28,13 +27,12 @@
     "react-dom": "^18.3.1",
     "svg-to-ico": "^1.1.1",
     "typescript": "^5.9.2",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vite": "^5.4.11"
   },
   "build": {
     "appId": "com.apexmapchange.widget",
     "productName": "Apex map",
-    "artifactName": "Apex-map-${version}-portable.${ext}",
+    "artifactName": "Apex map.${ext}",
     "directories": {
       "output": "release"
     },

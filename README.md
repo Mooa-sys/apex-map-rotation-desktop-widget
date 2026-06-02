@@ -16,7 +16,7 @@
 
 ## 下载与运行
 
-1. 在 GitHub Release 下载 `Apex-map-1.4.0-portable.exe`。
+1. 在 GitHub Release 下载 `Apex map.exe`。
 2. 双击运行即可，不需要安装。
 3. 当前便携版未做代码签名，首次运行时 Windows 可能显示 SmartScreen 或未知发布者提示。
 
@@ -35,12 +35,6 @@ npm run dev
 ```
 
 ## 检查与构建
-
-运行测试：
-
-```powershell
-npm test
-```
 
 执行类型检查并构建：
 
