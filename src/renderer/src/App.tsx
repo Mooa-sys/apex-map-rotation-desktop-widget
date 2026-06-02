@@ -1,4 +1,5 @@
 import { AlertTriangle, Clock3, Languages, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
+import { flushSync } from 'react-dom';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import {
@@ -14,6 +15,10 @@ import { getApexMapByName } from '../../shared/mapConfig';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LANGUAGE_STORAGE_KEY = 'apex-map-language';
+const FULL_WINDOW_WIDTH = 360;
+const FULL_WINDOW_HEIGHT = 260;
+const COMPACT_WINDOW_WIDTH = 300;
+const COMPACT_WINDOW_HEIGHT = 96;
 
 type LanguageCopy = {
   appTitle: string;
@@ -109,11 +114,14 @@ export function App(): JSX.Element {
   const [language, setLanguage] = useState<DisplayLanguage>(() => getInitialLanguage());
   const [isLoading, setIsLoading] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
+  const [isShrinkingToCompact, setIsShrinkingToCompact] = useState(false);
+  const [showExpandedChrome, setShowExpandedChrome] = useState(true);
   const [dockPeekEdge, setDockPeekEdge] = useState<'left' | 'right' | null>(null);
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const isDraggingRef = useRef(false);
   const animatingRef = useRef(false);
+  const lastAnimatedBoundsRef = useRef<{ width: number; height: number } | null>(null);
   const shellRef = useRef<HTMLElement>(null);
   const t = LANGUAGE_COPY[language];
 
@@ -169,6 +177,7 @@ export function App(): JSX.Element {
   const next = rotation.data?.upcoming[0];
   const currentMapClass = current ? getCurrentMapClass(current.map) : '';
   const canControlWindow = Boolean(window.apexMap);
+  const compactShellActive = isCompact || isShrinkingToCompact;
   const shellStyle = undefined satisfies CSSProperties | undefined;
 
   useEffect(() => {
@@ -184,103 +193,227 @@ export function App(): JSX.Element {
   const toggleCompactMode = useCallback(() => {
     if (animatingRef.current || !shellRef.current) return;
     animatingRef.current = true;
-
+    const goingCompact = !isCompact;
     const shell = shellRef.current;
+    const expandedPanel = shell.querySelector('.current-panel') as HTMLElement | null;
+    const expandedPanelRect = goingCompact ? expandedPanel?.getBoundingClientRect() ?? null : null;
+
+    if (goingCompact) {
+      flushSync(() => {
+        setIsShrinkingToCompact(true);
+        setShowExpandedChrome(false);
+      });
+    } else {
+      flushSync(() => {
+        setIsShrinkingToCompact(false);
+        setIsCompact(false);
+        setShowExpandedChrome(true);
+      });
+    }
+
     const titlebar = shell.querySelector('.titlebar') as HTMLElement | null;
+    const currentPanel = shell.querySelector('.current-panel') as HTMLElement | null;
     const nextPanel = shell.querySelector('.next-panel') as HTMLElement | null;
     const statusbar = shell.querySelector('.statusbar') as HTMLElement | null;
     const countdownClock = shell.querySelector('.countdown-clock') as HTMLElement | null;
     const heading = shell.querySelector('.current-copy h1') as HTMLElement | null;
     const timeRow = shell.querySelector('.time-row') as HTMLElement | null;
+    const initialWidth = goingCompact ? FULL_WINDOW_WIDTH : COMPACT_WINDOW_WIDTH;
+    const initialHeight = goingCompact ? FULL_WINDOW_HEIGHT : COMPACT_WINDOW_HEIGHT;
+    const targetWidth = goingCompact ? COMPACT_WINDOW_WIDTH : FULL_WINDOW_WIDTH;
+    const targetHeight = goingCompact ? COMPACT_WINDOW_HEIGHT : FULL_WINDOW_HEIGHT;
+    const sizeProxy = { width: initialWidth, height: initialHeight };
+    const syncWindowBounds = (): void => {
+      const width = Math.round(sizeProxy.width);
+      const height = Math.round(sizeProxy.height);
+      const previous = lastAnimatedBoundsRef.current;
+      if (previous?.width === width && previous.height === height) return;
+      lastAnimatedBoundsRef.current = { width, height };
+      void window.apexMap?.animateBounds(width, height);
+    };
+    const cleanupAnimatedStyles = (): void => {
+      const animatedElements = [
+        shell,
+        currentPanel,
+        titlebar,
+        nextPanel,
+        statusbar,
+        countdownClock,
+        heading,
+        timeRow
+      ].filter(Boolean);
 
-    const goingCompact = !isCompact;
-    const targetWidth = goingCompact ? 300 : 360;
-    const targetHeight = goingCompact ? 96 : 260;
+      gsap.set(animatedElements, {
+        clearProps: 'transform,opacity,scale,x,y,width,height,paddingTop,paddingRight,paddingBottom,paddingLeft,rowGap,borderRadius,transformOrigin'
+      });
+    };
 
     const tl = gsap.timeline({
       onComplete: () => {
-        setIsCompact(goingCompact);
-        window.apexMap?.setCompactMode(goingCompact);
+        flushSync(() => {
+          setIsCompact(goingCompact);
+          setIsShrinkingToCompact(false);
+          setShowExpandedChrome(!goingCompact);
+        });
+        cleanupAnimatedStyles();
+        lastAnimatedBoundsRef.current = { width: targetWidth, height: targetHeight };
+        void window.apexMap?.setCompactMode(goingCompact);
         animatingRef.current = false;
       }
     });
 
     if (goingCompact) {
-      if (titlebar) tl.to(titlebar, { y: -30, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
-      if (nextPanel) tl.to(nextPanel, { y: 20, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
-      if (statusbar) tl.to(statusbar, { y: 20, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
-      if (timeRow) tl.to(timeRow, { opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
+      gsap.set(shell, {
+        width: initialWidth,
+        height: initialHeight
+      });
+      if (currentPanel && expandedPanelRect) {
+        const compactPanelRect = currentPanel.getBoundingClientRect();
+        gsap.set(currentPanel, {
+          width: expandedPanelRect.width,
+          height: expandedPanelRect.height,
+          x: expandedPanelRect.left - compactPanelRect.left,
+          y: expandedPanelRect.top - compactPanelRect.top,
+          transformOrigin: 'top left'
+        });
+      }
 
-      // fromTo: start at the old full-window size so the shell shrinks
-      // into the already-resized compact window (overflow:hidden clips the excess)
-      tl.fromTo(shell, {
-        width: 360,
-        height: 260
-      }, {
+      tl.to(shell, {
         width: targetWidth,
         height: targetHeight,
-        duration: 0.4,
-        ease: 'back.out(1.7)',
+        paddingTop: 6,
+        paddingRight: 6,
+        paddingBottom: 6,
+        paddingLeft: 6,
+        rowGap: 0,
+        borderRadius: 18,
+        duration: 0.34,
+        ease: 'power3.inOut',
+        overwrite: 'auto'
+      }, 0);
+
+      if (currentPanel) {
+        tl.to(currentPanel, {
+          x: 0,
+          y: 0,
+          width: COMPACT_WINDOW_WIDTH - 12,
+          height: COMPACT_WINDOW_HEIGHT - 12,
+          borderRadius: 16,
+          transformOrigin: 'top left',
+          duration: 0.34,
+          ease: 'power3.inOut',
+          overwrite: 'auto'
+        }, 0);
+      }
+
+      if (heading) {
+        tl.to(heading, {
+          y: -2,
+          scale: 0.98,
+          transformOrigin: 'left center',
+          duration: 0.2,
+          ease: 'power2.inOut'
+        }, 0.04);
+      }
+
+      if (countdownClock) {
+        tl.to(countdownClock, {
+          x: -2,
+          y: 0,
+          scale: 0.92,
+          transformOrigin: 'center center',
+          duration: 0.28,
+          ease: 'power2.inOut'
+        }, 0.02);
+      }
+
+      tl.to(sizeProxy, {
+        width: targetWidth,
+        height: targetHeight,
+        duration: 0.34,
+        ease: 'power3.inOut',
         overwrite: 'auto',
-        onUpdate() {
-          const w = Math.round(parseFloat(shell.style.width) || 360);
-          const h = Math.round(parseFloat(shell.style.height) || 260);
-          window.apexMap?.animateBounds(w, h);
-        }
-      }, 0.1);
-
-      // Titlebar, next-panel, statusbar are now outside the compact body;
-      // hide them early so they don't flicker
-      if (titlebar) {
-        titlebar.style.display = 'none';
-      }
-      if (nextPanel) {
-        nextPanel.style.display = 'none';
-      }
-      if (statusbar) {
-        statusbar.style.display = 'none';
-      }
-
-      if (heading) tl.fromTo(heading, { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: 'back.out(1.5)' }, 0.3);
-      if (countdownClock) tl.fromTo(countdownClock, { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' }, 0.32);
+        onUpdate: syncWindowBounds
+      }, 0);
     } else {
-      if (heading) tl.to(heading, { y: -8, opacity: 0.6, duration: 0.15, ease: 'power2.in' }, 0);
-      if (countdownClock) tl.to(countdownClock, { scale: 0.8, opacity: 0.6, duration: 0.15, ease: 'power2.in' }, 0);
+      gsap.set(shell, {
+        paddingTop: 6,
+        paddingRight: 6,
+        paddingBottom: 6,
+        paddingLeft: 6,
+        rowGap: 0,
+        borderRadius: 18
+      });
+      if (currentPanel) {
+        gsap.set(currentPanel, {
+          y: -18,
+          scaleX: 0.965,
+          scaleY: 0.8,
+          borderRadius: 16,
+          transformOrigin: 'center center'
+        });
+      }
+      if (heading) gsap.set(heading, { y: -6, scale: 0.96, transformOrigin: 'left center' });
+      if (countdownClock) {
+        gsap.set(countdownClock, {
+          x: -6,
+          y: -2,
+          scale: 0.82,
+          transformOrigin: 'center center'
+        });
+      }
 
       if (titlebar) {
-        gsap.set(titlebar, { y: -30, opacity: 0, display: '' });
+        gsap.set(titlebar, { y: -18, opacity: 0, display: '' });
       }
       if (nextPanel) {
-        gsap.set(nextPanel, { y: 20, opacity: 0, display: '' });
+        gsap.set(nextPanel, { y: 16, opacity: 0, display: '' });
       }
       if (statusbar) {
-        gsap.set(statusbar, { y: 20, opacity: 0, display: '' });
+        gsap.set(statusbar, { y: 14, opacity: 0, display: '' });
       }
       if (timeRow) gsap.set(timeRow, { opacity: 0 });
 
-      // When expanding, the window is already at full size.
-      // The shell still has the .compact class (300x96), so use fromTo
-      // to animate the shell from compact up to full-window size.
-      tl.fromTo(shell, {
-        width: 300,
-        height: 96
-      }, {
+      tl.to(shell, {
+        paddingTop: 7,
+        paddingRight: 7,
+        paddingBottom: 7,
+        paddingLeft: 7,
+        rowGap: 8,
+        borderRadius: 18,
+        duration: 0.34,
+        ease: 'power2.out',
+        overwrite: 'auto'
+      }, 0.02);
+
+      if (currentPanel) {
+        tl.to(currentPanel, {
+          y: 0,
+          scaleX: 1,
+          scaleY: 1,
+          borderRadius: 8,
+          duration: 0.34,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        }, 0.02);
+      }
+
+      tl.to(sizeProxy, {
         width: targetWidth,
         height: targetHeight,
-        duration: 0.4,
-        ease: 'back.out(1.7)',
+        duration: 0.34,
+        ease: 'power3.out',
         overwrite: 'auto',
-        onUpdate() {
-          const w = Math.round(parseFloat(shell.style.width) || 300);
-          const h = Math.round(parseFloat(shell.style.height) || 96);
-          window.apexMap?.animateBounds(w, h);
-        }
-      }, 0.1);
+        onUpdate: syncWindowBounds
+      }, 0.04);
 
-      if (titlebar) tl.to(titlebar, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.35);
-      if (nextPanel) tl.to(nextPanel, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.38);
-      if (statusbar) tl.to(statusbar, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.41);
-      if (timeRow) tl.to(timeRow, { opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.35);
+      if (heading) tl.to(heading, { y: 0, scale: 1, duration: 0.24, ease: 'power2.out' }, 0.12);
+      if (countdownClock) tl.to(countdownClock, { x: 0, y: 0, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.12);
+
+      if (titlebar) tl.to(titlebar, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.2);
+      if (nextPanel) tl.to(nextPanel, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.23);
+      if (statusbar) tl.to(statusbar, { y: 0, opacity: 1, duration: 0.18, ease: 'power2.out' }, 0.26);
+      if (timeRow) tl.to(timeRow, { opacity: 1, duration: 0.18, ease: 'power2.out' }, 0.18);
     }
   }, [isCompact]);
 
@@ -308,8 +441,8 @@ export function App(): JSX.Element {
   }, []);
 
   return (
-    <main ref={shellRef} className={`widget-shell ${isCompact ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
-      {!isCompact && <header className="titlebar">
+    <main ref={shellRef} className={`widget-shell ${compactShellActive ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
+      {showExpandedChrome && <header className="titlebar">
         <div className="drag-region">
           <Swords aria-hidden="true" size={16} />
           <span>{t.appTitle}</span>
@@ -357,7 +490,7 @@ export function App(): JSX.Element {
         <div className="current-copy">
           <div className="section-label">{t.currentMap}</div>
           <h1>{current ? formatMapName(current.map, language) : rotation.error ? t.noMapData : t.loading}</h1>
-          {!isCompact && <div className="time-row">
+          {showExpandedChrome && <div className="time-row">
             <Clock3 size={15} />
             <span>{current ? `${current.start} - ${current.end}` : rotation.error ?? '--:-- - --:--'}</span>
           </div>}
@@ -374,7 +507,7 @@ export function App(): JSX.Element {
         />
       </section>
 
-      {!isCompact && <section className="next-panel">
+      {showExpandedChrome && <section className="next-panel">
         <div>
           <div className="section-label">{t.nextMap}</div>
           <strong>{next ? formatMapName(next.map, language) : t.waitingData}</strong>
@@ -382,7 +515,7 @@ export function App(): JSX.Element {
         <span>{next ? t.startsAt(next.start) : '--:--'}</span>
       </section>}
 
-      {!isCompact && <footer className="statusbar">
+      {showExpandedChrome && <footer className="statusbar">
         <button
           aria-label={t.refreshMapData}
           className="refresh-button"

@@ -220,9 +220,9 @@ app.whenReady().then(() => {
 
     const width = compact ? COMPACT_WINDOW_WIDTH : WINDOW_WIDTH;
     const height = compact ? COMPACT_WINDOW_HEIGHT : WINDOW_HEIGHT;
-    const { workArea } = screen.getDisplayMatching(window.getBounds());
-    const x = workArea.x + workArea.width - width - WINDOW_MARGIN;
-    const y = workArea.y + workArea.height - height - WINDOW_MARGIN;
+    const currentBounds = window.getBounds();
+    const x = currentBounds.x;
+    const y = currentBounds.y;
 
     const bounds = { x, y, width, height };
     setFixedWindowBounds(window, bounds);
@@ -238,10 +238,9 @@ app.whenReady().then(() => {
     window.setMinimumSize(1, 1);
     window.setMaximumSize(10_000, 10_000);
 
-    const display = screen.getDisplayMatching(window.getBounds());
-    const { workArea } = display;
-    const x = workArea.x + workArea.width - width - WINDOW_MARGIN;
-    const y = workArea.y + workArea.height - height - WINDOW_MARGIN;
+    const currentBounds = window.getBounds();
+    const x = currentBounds.x;
+    const y = currentBounds.y;
 
     window.setBounds({ x, y, width, height }, false);
   });
