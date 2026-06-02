@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import electron from 'electron';
 import { getMapRotation } from './mapService';
 
@@ -11,6 +11,7 @@ const COMPACT_WINDOW_HEIGHT = 96;
 const WINDOW_MARGIN = 14;
 const EDGE_SNAP_DISTANCE = 24;
 const EDGE_PEEK_SIZE = 18;
+const PRODUCT_NAME = 'Apex map';
 
 type DockEdge = 'left' | 'right';
 
@@ -30,6 +31,32 @@ let compactDragState: {
 } | null = null;
 const dockStates = new Map<number, DockState>();
 let dockPollInterval: NodeJS.Timeout | null = null;
+
+function createDesktopShortcut(): { success: boolean; path: string; error: string | null } {
+  const shortcutPath = join(app.getPath('desktop'), `${PRODUCT_NAME}.lnk`);
+  const executablePath = process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath;
+  try {
+    const success = shell.writeShortcutLink(shortcutPath, 'replace', {
+      target: executablePath,
+      cwd: dirname(executablePath),
+      description: 'Apex Legends ranked map rotation desktop widget',
+      icon: executablePath,
+      iconIndex: 0
+    });
+
+    return {
+      success,
+      path: shortcutPath,
+      error: success ? null : 'Windows did not create the shortcut.'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      path: shortcutPath,
+      error: error instanceof Error ? error.message : 'Failed to create shortcut.'
+    };
+  }
+}
 
 function setFixedWindowBounds(window: electron.BrowserWindow, bounds: electron.Rectangle): void {
   window.setResizable(true);
@@ -213,6 +240,7 @@ app.whenReady().then(() => {
   startDockPolling();
 
   ipcMain.handle('map-rotation:get', (_event, force?: boolean) => getMapRotation(Boolean(force)));
+  ipcMain.handle('desktop-shortcut:create', () => createDesktopShortcut());
   ipcMain.handle('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window:compact', (event, compact?: boolean) => {
     const window = BrowserWindow.fromWebContents(event.sender);

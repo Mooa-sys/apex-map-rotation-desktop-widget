@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock3, Languages, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
+import { AlertTriangle, Clock3, Languages, Minimize2, MonitorUp, RefreshCw, Swords, X } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
@@ -39,6 +39,9 @@ type LanguageCopy = {
   refreshFailed: string;
   refreshErrorMessage: string;
   switchLanguage: string;
+  createDesktopShortcut: string;
+  shortcutCreated: string;
+  shortcutFailed: string;
   countdownAria: (value: string) => string;
   htmlLang: string;
   timeLocale: string;
@@ -64,6 +67,9 @@ const LANGUAGE_COPY: Record<DisplayLanguage, LanguageCopy> = {
     refreshFailed: '刷新失败',
     refreshErrorMessage: '地图数据刷新失败',
     switchLanguage: 'Switch to English',
+    createDesktopShortcut: '添加桌面快捷方式',
+    shortcutCreated: '快捷方式已添加',
+    shortcutFailed: '快捷方式添加失败',
     countdownAria: (value) => `地图切换倒计时：${value}`,
     htmlLang: 'zh-CN',
     timeLocale: 'zh-CN'
@@ -87,6 +93,9 @@ const LANGUAGE_COPY: Record<DisplayLanguage, LanguageCopy> = {
     refreshFailed: 'Refresh failed',
     refreshErrorMessage: 'Failed to refresh map data',
     switchLanguage: '切换到中文',
+    createDesktopShortcut: 'Add desktop shortcut',
+    shortcutCreated: 'Shortcut added',
+    shortcutFailed: 'Shortcut failed',
     countdownAria: (value) => `Map rotation countdown: ${value}`,
     htmlLang: 'en',
     timeLocale: 'en-US'
@@ -118,6 +127,7 @@ export function App(): JSX.Element {
   const [showExpandedChrome, setShowExpandedChrome] = useState(true);
   const [dockPeekEdge, setDockPeekEdge] = useState<'left' | 'right' | null>(null);
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
+  const [shortcutStatus, setShortcutStatus] = useState<'created' | 'failed' | null>(null);
   const [now, setNow] = useState(() => new Date());
   const isDraggingRef = useRef(false);
   const animatingRef = useRef(false);
@@ -421,6 +431,13 @@ export function App(): JSX.Element {
     setLanguage((previous) => (previous === 'zh' ? 'en' : 'zh'));
   }, []);
 
+  const createDesktopShortcut = useCallback(async () => {
+    if (!window.apexMap) return;
+
+    const result = await window.apexMap.createDesktopShortcut();
+    setShortcutStatus(result.success ? 'created' : 'failed');
+  }, []);
+
   const startCompactDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (!isCompact || event.button !== 0) return;
     isDraggingRef.current = true;
@@ -455,6 +472,15 @@ export function App(): JSX.Element {
             onClick={toggleLanguage}
           >
             <Languages size={15} />
+          </button>
+          <button
+            aria-label={t.createDesktopShortcut}
+            className="icon-button"
+            disabled={!canControlWindow}
+            title={t.createDesktopShortcut}
+            onClick={createDesktopShortcut}
+          >
+            <MonitorUp size={15} />
           </button>
           <button
             aria-label={t.compactMode}
@@ -525,7 +551,11 @@ export function App(): JSX.Element {
           <RefreshCw className={isLoading ? 'spinning' : ''} size={14} />
         </button>
         <span>
-          {rotation.data
+          {shortcutStatus
+            ? shortcutStatus === 'created'
+              ? t.shortcutCreated
+              : t.shortcutFailed
+            : rotation.data
             ? t.updatedAt(new Date(rotation.data.fetchedAt).toLocaleTimeString(t.timeLocale, {
                 hour: '2-digit',
                 minute: '2-digit'

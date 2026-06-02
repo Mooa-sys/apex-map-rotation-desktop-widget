@@ -6,6 +6,8 @@ const { contextBridge, ipcRenderer } = electron;
 const api = {
   getMapRotation: (force = false): Promise<RotationResponse> =>
     ipcRenderer.invoke('map-rotation:get', force),
+  createDesktopShortcut: (): Promise<{ success: boolean; path: string; error: string | null }> =>
+    ipcRenderer.invoke('desktop-shortcut:create'),
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   setCompactMode: (compact: boolean): Promise<void> => ipcRenderer.invoke('window:compact', compact),
   onDockPeekChange: (callback: (edge: 'left' | 'right' | null) => void): (() => void) => {
