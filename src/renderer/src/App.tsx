@@ -108,6 +108,7 @@ export function App(): JSX.Element {
   const [language, setLanguage] = useState<DisplayLanguage>(() => getInitialLanguage());
   const [isLoading, setIsLoading] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
+  const [dockPeekEdge, setDockPeekEdge] = useState<'left' | 'right' | null>(null);
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const isDraggingRef = useRef(false);
@@ -137,6 +138,8 @@ export function App(): JSX.Element {
     document.documentElement.lang = t.htmlLang;
     document.title = t.appTitle;
   }, [language, t.appTitle, t.htmlLang]);
+
+  useEffect(() => window.apexMap?.onDockPeekChange(setDockPeekEdge), []);
 
   useEffect(() => {
     loadRotation(true, true);
@@ -213,7 +216,7 @@ export function App(): JSX.Element {
   }, []);
 
   return (
-    <main className={`widget-shell ${isCompact ? 'compact' : ''}`} style={shellStyle}>
+    <main className={`widget-shell ${isCompact ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
       {!isCompact && <header className="titlebar">
         <div className="drag-region">
           <Swords aria-hidden="true" size={16} />

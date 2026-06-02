@@ -58,6 +58,8 @@ button {
 }
 
 .widget-shell.compact {
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   grid-template-rows: 1fr;
   gap: 0;
   width: 300px;
@@ -68,6 +70,38 @@ button {
     linear-gradient(90deg, rgba(219, 49, 62, 0.16), transparent 42%),
     linear-gradient(270deg, rgba(30, 164, 159, 0.14), transparent 44%),
     #111317;
+}
+
+.widget-shell.compact.peek-left {
+  transform: translateX(calc(-100% + 18px));
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.widget-shell.compact.peek-right {
+  transform: translateX(calc(100% - 18px));
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.widget-shell.compact.peek-left::after,
+.widget-shell.compact.peek-right::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  content: '';
+  pointer-events: auto;
+}
+
+.widget-shell.compact.peek-left::after {
+  right: 0;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.12));
+}
+
+.widget-shell.compact.peek-right::after {
+  left: 0;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.12));
 }
 
 .titlebar {

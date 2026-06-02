@@ -8,6 +8,13 @@ const api = {
     ipcRenderer.invoke('map-rotation:get', force),
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   setCompactMode: (compact: boolean): Promise<void> => ipcRenderer.invoke('window:compact', compact),
+  onDockPeekChange: (callback: (edge: 'left' | 'right' | null) => void): (() => void) => {
+    const listener = (_event: electron.IpcRendererEvent, edge: 'left' | 'right' | null): void => {
+      callback(edge);
+    };
+    ipcRenderer.on('window:dock-peek-change', listener);
+    return () => ipcRenderer.removeListener('window:dock-peek-change', listener);
+  },
   startDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-start'),
   moveDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-move'),
   endDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-end'),
