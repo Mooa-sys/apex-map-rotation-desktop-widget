@@ -15,6 +15,8 @@ const api = {
     ipcRenderer.on('window:dock-peek-change', listener);
     return () => ipcRenderer.removeListener('window:dock-peek-change', listener);
   },
+  animateBounds: (width: number, height: number): Promise<void> =>
+    ipcRenderer.invoke('window:animate-bounds', width, height),
   startDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-start'),
   moveDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-move'),
   endDrag: (): Promise<void> => ipcRenderer.invoke('window:drag-end'),

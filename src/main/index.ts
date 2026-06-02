@@ -228,6 +228,24 @@ app.whenReady().then(() => {
     setFixedWindowBounds(window, bounds);
     refreshDockState(window, Boolean(compact));
   });
+  ipcMain.handle('window:animate-bounds', (event, width: number, height: number) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+
+    // Relax size constraints so the window can follow the animation
+    // frame-by-frame without fighting min/max limits.
+    window.setResizable(true);
+    window.setMinimumSize(1, 1);
+    window.setMaximumSize(10_000, 10_000);
+
+    const display = screen.getDisplayMatching(window.getBounds());
+    const { workArea } = display;
+    const x = workArea.x + workArea.width - width - WINDOW_MARGIN;
+    const y = workArea.y + workArea.height - height - WINDOW_MARGIN;
+
+    window.setBounds({ x, y, width, height }, false);
+  });
+
   ipcMain.handle('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle('window:drag-start', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

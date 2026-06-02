@@ -105,6 +105,7 @@ button {
 }
 
 .titlebar {
+  will-change: transform, opacity;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -238,6 +239,7 @@ button {
 }
 
 .current-copy {
+  will-change: transform;
   position: relative;
   z-index: 1;
   min-width: 0;
@@ -282,6 +284,7 @@ h1 {
 }
 
 .countdown-clock {
+  will-change: transform;
   -webkit-app-region: no-drag;
   position: relative;
   z-index: 1;
@@ -349,6 +352,7 @@ h1 {
 }
 
 .next-panel {
+  will-change: transform, opacity;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -376,6 +380,7 @@ h1 {
 }
 
 .statusbar {
+  will-change: transform, opacity;
   display: flex;
   align-items: center;
   min-width: 0;

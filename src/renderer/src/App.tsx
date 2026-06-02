@@ -1,5 +1,6 @@
 import { AlertTriangle, Clock3, Languages, Minimize2, RefreshCw, Swords, X } from 'lucide-react';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import gsap from 'gsap';
 import {
   type DisplayLanguage,
   formatCountdown,
@@ -112,6 +113,8 @@ export function App(): JSX.Element {
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const isDraggingRef = useRef(false);
+  const animatingRef = useRef(false);
+  const shellRef = useRef<HTMLElement>(null);
   const t = LANGUAGE_COPY[language];
 
   const loadRotation = useCallback(async (force = false, animateClock = false) => {
@@ -166,31 +169,120 @@ export function App(): JSX.Element {
   const next = rotation.data?.upcoming[0];
   const currentMapClass = current ? getCurrentMapClass(current.map) : '';
   const canControlWindow = Boolean(window.apexMap);
-  const shellStyle = (isCompact
-    ? {
-        width: 300,
-        height: 96
-      }
-    : undefined) satisfies CSSProperties | undefined;
+  const shellStyle = undefined satisfies CSSProperties | undefined;
 
   useEffect(() => {
     document.documentElement.classList.toggle('compact-mode', isCompact);
     document.body.classList.toggle('compact-mode', isCompact);
-    window.apexMap?.setCompactMode(isCompact);
-    const resizeId = window.setTimeout(() => {
-      window.apexMap?.setCompactMode(isCompact);
-    }, 120);
 
     return () => {
-      window.clearTimeout(resizeId);
       document.documentElement.classList.remove('compact-mode');
       document.body.classList.remove('compact-mode');
     };
   }, [isCompact]);
 
   const toggleCompactMode = useCallback(() => {
-    setIsCompact((previous) => !previous);
-  }, []);
+    if (animatingRef.current || !shellRef.current) return;
+    animatingRef.current = true;
+
+    const shell = shellRef.current;
+    const titlebar = shell.querySelector('.titlebar') as HTMLElement | null;
+    const nextPanel = shell.querySelector('.next-panel') as HTMLElement | null;
+    const statusbar = shell.querySelector('.statusbar') as HTMLElement | null;
+    const countdownClock = shell.querySelector('.countdown-clock') as HTMLElement | null;
+    const heading = shell.querySelector('.current-copy h1') as HTMLElement | null;
+    const timeRow = shell.querySelector('.time-row') as HTMLElement | null;
+
+    const goingCompact = !isCompact;
+    const targetWidth = goingCompact ? 300 : 360;
+    const targetHeight = goingCompact ? 96 : 260;
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setIsCompact(goingCompact);
+        window.apexMap?.setCompactMode(goingCompact);
+        animatingRef.current = false;
+      }
+    });
+
+    if (goingCompact) {
+      if (titlebar) tl.to(titlebar, { y: -30, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
+      if (nextPanel) tl.to(nextPanel, { y: 20, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
+      if (statusbar) tl.to(statusbar, { y: 20, opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
+      if (timeRow) tl.to(timeRow, { opacity: 0, duration: 0.15, ease: 'power2.in' }, 0);
+
+      // fromTo: start at the old full-window size so the shell shrinks
+      // into the already-resized compact window (overflow:hidden clips the excess)
+      tl.fromTo(shell, {
+        width: 360,
+        height: 260
+      }, {
+        width: targetWidth,
+        height: targetHeight,
+        duration: 0.4,
+        ease: 'back.out(1.7)',
+        overwrite: 'auto',
+        onUpdate() {
+          const w = Math.round(parseFloat(shell.style.width) || 360);
+          const h = Math.round(parseFloat(shell.style.height) || 260);
+          window.apexMap?.animateBounds(w, h);
+        }
+      }, 0.1);
+
+      // Titlebar, next-panel, statusbar are now outside the compact body;
+      // hide them early so they don't flicker
+      if (titlebar) {
+        titlebar.style.display = 'none';
+      }
+      if (nextPanel) {
+        nextPanel.style.display = 'none';
+      }
+      if (statusbar) {
+        statusbar.style.display = 'none';
+      }
+
+      if (heading) tl.fromTo(heading, { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: 'back.out(1.5)' }, 0.3);
+      if (countdownClock) tl.fromTo(countdownClock, { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' }, 0.32);
+    } else {
+      if (heading) tl.to(heading, { y: -8, opacity: 0.6, duration: 0.15, ease: 'power2.in' }, 0);
+      if (countdownClock) tl.to(countdownClock, { scale: 0.8, opacity: 0.6, duration: 0.15, ease: 'power2.in' }, 0);
+
+      if (titlebar) {
+        gsap.set(titlebar, { y: -30, opacity: 0, display: '' });
+      }
+      if (nextPanel) {
+        gsap.set(nextPanel, { y: 20, opacity: 0, display: '' });
+      }
+      if (statusbar) {
+        gsap.set(statusbar, { y: 20, opacity: 0, display: '' });
+      }
+      if (timeRow) gsap.set(timeRow, { opacity: 0 });
+
+      // When expanding, the window is already at full size.
+      // The shell still has the .compact class (300x96), so use fromTo
+      // to animate the shell from compact up to full-window size.
+      tl.fromTo(shell, {
+        width: 300,
+        height: 96
+      }, {
+        width: targetWidth,
+        height: targetHeight,
+        duration: 0.4,
+        ease: 'back.out(1.7)',
+        overwrite: 'auto',
+        onUpdate() {
+          const w = Math.round(parseFloat(shell.style.width) || 300);
+          const h = Math.round(parseFloat(shell.style.height) || 96);
+          window.apexMap?.animateBounds(w, h);
+        }
+      }, 0.1);
+
+      if (titlebar) tl.to(titlebar, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.35);
+      if (nextPanel) tl.to(nextPanel, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.38);
+      if (statusbar) tl.to(statusbar, { y: 0, opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.41);
+      if (timeRow) tl.to(timeRow, { opacity: 1, duration: 0.2, ease: 'power2.out' }, 0.35);
+    }
+  }, [isCompact]);
 
   const toggleLanguage = useCallback(() => {
     setLanguage((previous) => (previous === 'zh' ? 'en' : 'zh'));
@@ -216,7 +308,7 @@ export function App(): JSX.Element {
   }, []);
 
   return (
-    <main className={`widget-shell ${isCompact ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
+    <main ref={shellRef} className={`widget-shell ${isCompact ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
       {!isCompact && <header className="titlebar">
         <div className="drag-region">
           <Swords aria-hidden="true" size={16} />
