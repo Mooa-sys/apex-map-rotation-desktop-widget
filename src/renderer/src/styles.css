@@ -367,11 +367,11 @@ h1 {
 }
 
 .countdown-progress-animated {
-  animation: countdown-refresh 0.82s cubic-bezier(0.2, 0.82, 0.2, 1) both;
+  animation: countdown-refresh 1.5s cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 
 .countdown-glow-animated {
-  animation: countdown-glow-refresh 0.82s cubic-bezier(0.2, 0.82, 0.2, 1) both;
+  animation: countdown-glow-refresh 1.5s cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 
 .next-panel {
