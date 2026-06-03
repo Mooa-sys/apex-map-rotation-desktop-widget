@@ -1,0 +1,5 @@
+{
+  "debugPortAddress": "127.0.0.1:55486",
+  "defaultEntrypointService": "core:user:apex-tracker-proxy",
+  "userWorkerService": "core:user:apex-tracker-proxy"
+}
