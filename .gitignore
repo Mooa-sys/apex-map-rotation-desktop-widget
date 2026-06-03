@@ -4,9 +4,17 @@ dist
 release
 .vite
 coverage
+.cache
 *.log
 *.tsbuildinfo
 .trae/
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.orig
 commit_notice.md
 taggapi.env
 workers/tracker-proxy/.dev.vars

@@ -76,6 +76,12 @@ npm run package:win
 npm run package:portable
 ```
 
+如果当前环境会遇到 `electron-builder` 的缓存权限、符号链接权限或 GitHub 下载超时问题，可直接使用已经固化好环境变量和参数的一键重打包脚本：
+
+```powershell
+npm run package:portable:stable
+```
+
 正式 Windows 打包使用 `build/icon.ico`。可编辑源文件优先使用 `build/icon.svg`；如果不存在，则使用 `build/icon_256.svg` 生成 ICO。替换 SVG 后运行 `npm run generate:icon` 即可重新生成 ICO。
 
 ## 地图轮换配置
