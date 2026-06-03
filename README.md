@@ -16,7 +16,7 @@
 - 支持中文 / English 界面切换，并会记住上次选择。
 - 支持从应用内添加桌面快捷方式，便携版无需安装也可以固定入口。
 - 使用本地配置维护地图池和轮换顺序。
-- 赛季数据会从 Tracker.gg 榜单页面抓取当前 PC 平台的大师/猎杀人数与猎杀最低分。
+- 赛季数据会通过 Cloudflare Worker 中转获取当前 PC 平台的大师/猎杀人数与猎杀最低分。
 
 ## 下载与运行
 
@@ -37,6 +37,16 @@ npm install
 ```powershell
 npm run dev
 ```
+
+如果要在本地开发时启用赛季数据，请先启动 Worker：
+
+```powershell
+cd workers/tracker-proxy
+npm install
+npm run dev
+```
+
+主程序在开发环境下会默认请求 `http://127.0.0.1:8787/ranked-stats`。
 
 <br />
 
@@ -96,7 +106,9 @@ Broken Moon -> Storm Point -> Olympus
   - 格式优先 `PNG` 透明背景；如果你有矢量资源，也可以改成 `SVG`
   - 推荐分辨率 `128x128` 或 `256x256`
   - 图标主体尽量居中，四周预留 8% 到 12% 安全边距
-- 当前赛季数据页会在主进程里抓取 `https://apex.tracker.gg/apex/leaderboards/stats/origin/RankScore?legend=all&type=stats` 的实时榜单文本并解析显示。
+- 当前赛季数据页会由 Electron 主进程请求 Cloudflare Worker 的 `/ranked-stats` 接口。
+- 开发环境默认使用本地 Worker 地址：`http://127.0.0.1:8787/ranked-stats`
+- 如需覆盖默认地址，仍可使用环境变量 `RANKED_STATS_WORKER_URL`
 
 ## 项目结构
 

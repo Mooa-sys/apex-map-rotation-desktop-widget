@@ -9,3 +9,5 @@ coverage
 .trae/
 commit_notice.md
 taggapi.env
+workers/tracker-proxy/.dev.vars
+workers/tracker-proxy/.wrangler
