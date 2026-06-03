@@ -8,11 +8,15 @@
 
 - 显示当前 Apex 排位地图和本轮结束时间。
 - 显示下一张即将轮换的排位地图。
+- 新增赛季数据页，显示当前赛季大师/猎杀总人数和猎杀最低分。
 - 每分钟自动刷新地图轮换数据。
+- 完整模式下可通过鼠标滚轮左右切换“地图页 / 赛季数据页”。
+- 简洁模式下可通过鼠标滚轮上下切换“地图页 / 赛季数据页”。
 - 支持简洁模式，方便作为桌面小窗常驻。
 - 支持中文 / English 界面切换，并会记住上次选择。
 - 支持从应用内添加桌面快捷方式，便携版无需安装也可以固定入口。
 - 使用本地配置维护地图池和轮换顺序。
+- 赛季数据会从 Tracker.gg 榜单页面抓取当前 PC 平台的大师/猎杀人数与猎杀最低分。
 
 ## 下载与运行
 
@@ -33,6 +37,8 @@ npm install
 ```powershell
 npm run dev
 ```
+
+<br />
 
 ## 检查与构建
 
@@ -79,6 +85,18 @@ npm run package:portable
 ```text
 Broken Moon -> Storm Point -> Olympus
 ```
+
+## 赛季数据资源与占位说明
+
+- 赛季数据图标资源目录：`src/renderer/public/ranked-icons/`
+- 预留文件名：
+  - `master.png`
+  - `predator.png`
+- 推荐规格：
+  - 格式优先 `PNG` 透明背景；如果你有矢量资源，也可以改成 `SVG`
+  - 推荐分辨率 `128x128` 或 `256x256`
+  - 图标主体尽量居中，四周预留 8% 到 12% 安全边距
+- 当前赛季数据页会在主进程里抓取 `https://apex.tracker.gg/apex/leaderboards/stats/origin/RankScore?legend=all&type=stats` 的实时榜单文本并解析显示。
 
 ## 项目结构
 

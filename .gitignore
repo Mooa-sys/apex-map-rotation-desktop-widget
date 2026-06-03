@@ -8,3 +8,4 @@ coverage
 *.tsbuildinfo
 .trae/
 commit_notice.md
+taggapi.env
