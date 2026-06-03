@@ -300,7 +300,7 @@ h1 {
   height: 100px;
   justify-self: end;
   align-self: start;
-  margin-top: -4px;
+  margin-top: -16px;
 }
 
 .compact .countdown-clock {
@@ -324,28 +324,41 @@ h1 {
 }
 
 .countdown-track,
-.countdown-progress {
+.countdown-progress,
+.countdown-glow {
   fill: none;
   stroke-linecap: round;
-  stroke-width: 9;
 }
 
 .countdown-track {
   stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 9;
+}
+
+.countdown-glow {
+  stroke: var(--countdown-target-color, #35bf8d);
+  stroke-width: 14;
+  opacity: 0;
 }
 
 .countdown-progress {
   stroke: var(--countdown-target-color, #35bf8d);
+  stroke-width: 9;
 }
 
 .countdown-clock strong {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #ffffff;
   font-size: 18px;
   font-weight: 800;
+  line-height: 1;
   letter-spacing: 0;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72);
+  transform: translateY(-2px);
   white-space: nowrap;
 }
 
@@ -355,6 +368,10 @@ h1 {
 
 .countdown-progress-animated {
   animation: countdown-refresh 0.82s cubic-bezier(0.2, 0.82, 0.2, 1) both;
+}
+
+.countdown-glow-animated {
+  animation: countdown-glow-refresh 0.82s cubic-bezier(0.2, 0.82, 0.2, 1) both;
 }
 
 .next-panel {
@@ -426,18 +443,37 @@ h1 {
     stroke-dashoffset: var(--countdown-start-offset);
     stroke: var(--countdown-start-color, #35bf8d);
     stroke-width: 8;
-    filter: drop-shadow(0 0 6px rgba(53, 191, 141, 0.28));
   }
 
   55% {
     stroke-width: 10;
-    filter: drop-shadow(0 0 9px rgba(53, 191, 141, 0.74));
   }
 
   100% {
     stroke-dashoffset: var(--countdown-target-offset);
     stroke: var(--countdown-target-color, #35bf8d);
     stroke-width: 9;
-    filter: drop-shadow(0 0 0 rgba(53, 191, 141, 0));
+  }
+}
+
+@keyframes countdown-glow-refresh {
+  0% {
+    stroke-dashoffset: var(--countdown-start-offset);
+    stroke: var(--countdown-start-color, #35bf8d);
+    stroke-width: 12;
+    opacity: 0.12;
+  }
+
+  55% {
+    stroke: var(--countdown-target-color, #35bf8d);
+    stroke-width: 16;
+    opacity: 0.3;
+  }
+
+  100% {
+    stroke-dashoffset: var(--countdown-target-offset);
+    stroke: var(--countdown-target-color, #35bf8d);
+    stroke-width: 12;
+    opacity: 0;
   }
 }

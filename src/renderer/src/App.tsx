@@ -593,12 +593,17 @@ function CountdownClock({
   const remainingRatio =
     minutes === null ? 0 : Math.max(0, Math.min(1, minutes / LOCAL_ROTATION_SLOT_MINUTES));
   const dashOffset = circumference * (1 - remainingRatio);
+  const startColor = '#35bf8d';
   const progressColor = getCountdownColor(remainingRatio);
+  const startColorRgb = colorToRgbChannels(startColor);
+  const targetColorRgb = colorToRgbChannels(progressColor);
   const progressStyle = {
     '--countdown-start-offset': '0px',
     '--countdown-target-offset': `${dashOffset}px`,
-    '--countdown-start-color': '#35bf8d',
-    '--countdown-target-color': progressColor
+    '--countdown-start-color': startColor,
+    '--countdown-target-color': progressColor,
+    '--countdown-start-color-rgb': startColorRgb,
+    '--countdown-target-color-rgb': targetColorRgb
   } as CSSProperties;
 
   return (
@@ -609,6 +614,16 @@ function CountdownClock({
     >
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <circle className="countdown-track" cx="50" cy="50" r={radius} />
+        <circle
+          className="countdown-glow countdown-glow-animated"
+          key={`${animationKey}-glow`}
+          cx="50"
+          cy="50"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          style={progressStyle}
+        />
         <circle
           className="countdown-progress countdown-progress-animated"
           key={animationKey}
@@ -653,6 +668,19 @@ function mixColor(low: string, high: string, ratio: number): string {
     Math.round(channel + (highRgb[index] - channel) * clamped)
   );
   return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+}
+
+function colorToRgbChannels(color: string): string {
+  if (color.startsWith('#')) {
+    return hexToRgb(color).join(', ');
+  }
+
+  const matched = color.match(/\d+/g);
+  if (matched && matched.length >= 3) {
+    return matched.slice(0, 3).join(', ');
+  }
+
+  return '53, 191, 141';
 }
 
 function hexToRgb(hex: string): [number, number, number] {
