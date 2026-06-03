@@ -1,4 +1,4 @@
-import { AlertTriangle, Languages, Minimize2, MonitorUp, RefreshCw, Swords, X } from 'lucide-react';
+import { Languages, Minimize2, MonitorUp, RefreshCw, Swords, X } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
@@ -11,7 +11,7 @@ import {
   type RotationResponse
 } from '../../shared/mapRotation';
 import { getApexMapByName } from '../../shared/mapConfig';
-import { getPlaceholderRankedStats, type RankedStatsResponse } from '../../shared/rankedStats';
+import { type RankedStatsResponse } from '../../shared/rankedStats';
 import { MapPage } from './components/MapPage';
 import { RankedStatsPage } from './components/RankedStatsPage';
 
@@ -158,7 +158,7 @@ async function getRankedStats(force = false): Promise<RankedStatsResponse> {
   }
 
   return {
-    data: getPlaceholderRankedStats(new Date()),
+    data: null,
     error: null,
     isStale: false
   };
@@ -288,8 +288,6 @@ export function App(): JSX.Element {
       ? `translate3d(0, -${activePageIndex * 50}%, 0)`
       : `translate3d(-${activePageIndex * 50}%, 0, 0)`
   } satisfies CSSProperties;
-  const activeError = activePageIndex === 0 ? rotation.error : rankedStats.error;
-  const activeIsStale = activePageIndex === 0 ? rotation.isStale : rankedStats.isStale;
   const activeFetchedAt = activePageIndex === 0 ? rotation.data?.fetchedAt : rankedStats.data?.fetchedAt;
 
   const toggleCompactMode = useCallback(() => {
@@ -711,12 +709,6 @@ export function App(): JSX.Element {
                 }))
               : t.notUpdated}
           </span>
-          {activeError && (
-            <span className="error" title={activeError}>
-              <AlertTriangle size={13} />
-              {activeIsStale ? t.showingCache : t.refreshFailed}
-            </span>
-          )}
           <div className="page-indicators in-statusbar" aria-hidden="true">
             {PAGE_LABEL_KEYS.map((key, index) => (
               <span

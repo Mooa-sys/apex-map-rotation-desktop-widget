@@ -1,6 +1,6 @@
-import { app } from 'electron';
+import { app, net } from 'electron';
 import { getLocalMapRotation, type RotationResponse } from '../shared/mapRotation';
-import { getPlaceholderRankedStats, type RankedStatsResponse, type RankedStatsData } from '../shared/rankedStats';
+import { type RankedStatsResponse, type RankedStatsData } from '../shared/rankedStats';
 
 const LOCAL_WORKER_URL = 'http://127.0.0.1:8787/ranked-stats';
 const PRODUCTION_WORKER_URL = 'https://apex-tracker-proxy.mmfan404.workers.dev/ranked-stats';
@@ -34,14 +34,11 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
     try {
       const workerUrl = resolveRankedStatsWorkerUrl();
       if (!workerUrl) {
-        const placeholder = {
-          data: getPlaceholderRankedStats(new Date()),
+        return {
+          data: null,
           error: 'Missing ranked stats Worker URL.',
           isStale: false
         } satisfies RankedStatsResponse;
-        rankedStatsCache = placeholder;
-        rankedStatsCacheAt = Date.now();
-        return placeholder;
       }
 
       const data = await fetchRankedStatsFromWorker(workerUrl);
@@ -54,6 +51,14 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
       rankedStatsCacheAt = Date.now();
       return nextResponse;
     } catch (error) {
+      if (force && isCacheFresh && rankedStatsCache) {
+        return {
+          data: rankedStatsCache.data,
+          error: null,
+          isStale: false
+        } satisfies RankedStatsResponse;
+      }
+
       if (rankedStatsCache?.data) {
         return {
           data: rankedStatsCache.data,
@@ -62,14 +67,11 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
         } satisfies RankedStatsResponse;
       }
 
-      const placeholder = {
-        data: getPlaceholderRankedStats(new Date()),
+      return {
+        data: null,
         error: error instanceof Error ? error.message : 'Failed to load Tracker.gg ranked stats.',
         isStale: false
       } satisfies RankedStatsResponse;
-      rankedStatsCache = placeholder;
-      rankedStatsCacheAt = Date.now();
-      return placeholder;
     } finally {
       rankedStatsInFlight = null;
     }
@@ -90,19 +92,11 @@ function resolveRankedStatsWorkerUrl(): string {
 }
 
 async function fetchRankedStatsFromWorker(workerUrl: string): Promise<RankedStatsData> {
-  const response = await fetch(workerUrl, {
-    headers: {
-      accept: 'application/json'
-    },
-    signal: AbortSignal.timeout(WORKER_REQUEST_TIMEOUT_MS)
-  });
+  const response = await requestRankedStats(workerUrl);
+  const payload = response.payload;
 
-  const payload = (await response.json()) as Partial<RankedStatsData> & {
-    error?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(payload.error ?? `Ranked stats Worker request failed with status ${response.status}.`);
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(payload.error ?? `Ranked stats Worker request failed with status ${response.statusCode}.`);
   }
 
   if (
@@ -120,4 +114,74 @@ async function fetchRankedStatsFromWorker(workerUrl: string): Promise<RankedStat
     fetchedAt: typeof payload.fetchedAt === 'string' ? payload.fetchedAt : new Date().toISOString(),
     isPlaceholder: false
   };
+}
+
+async function requestRankedStats(workerUrl: string): Promise<{
+  statusCode: number;
+  payload: Partial<RankedStatsData> & { error?: string };
+}> {
+  return new Promise((resolve, reject) => {
+    const request = net.request({
+      url: workerUrl,
+      method: 'GET'
+    });
+    let settled = false;
+
+    request.setHeader('accept', 'application/json');
+
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      request.abort();
+      reject(new Error(`Ranked stats Worker request timed out after ${WORKER_REQUEST_TIMEOUT_MS}ms.`));
+    }, WORKER_REQUEST_TIMEOUT_MS);
+
+    request.on('response', (response) => {
+      const chunks: Buffer[] = [];
+
+      response.on('data', (chunk) => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+
+      response.on('end', () => {
+        clearTimeout(timeoutId);
+        if (settled) return;
+        settled = true;
+
+        const body = Buffer.concat(chunks).toString('utf8');
+        if (!body) {
+          resolve({
+            statusCode: response.statusCode,
+            payload: {}
+          });
+          return;
+        }
+
+        try {
+          resolve({
+            statusCode: response.statusCode,
+            payload: JSON.parse(body) as Partial<RankedStatsData> & { error?: string }
+          });
+        } catch {
+          reject(new Error('Ranked stats Worker returned invalid JSON.'));
+        }
+      });
+
+      response.on('error', (error) => {
+        clearTimeout(timeoutId);
+        if (settled) return;
+        settled = true;
+        reject(error);
+      });
+    });
+
+    request.on('error', (error) => {
+      clearTimeout(timeoutId);
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
+
+    request.end();
+  });
 }

@@ -2,6 +2,9 @@ import { useMemo, useState, type PointerEventHandler } from 'react';
 import { type DisplayLanguage } from '../../../shared/mapRotation';
 import { type RankedStatsData } from '../../../shared/rankedStats';
 
+const MASTER_ICON_SRC = './ranked-icons/master.png';
+const PREDATOR_ICON_SRC = './ranked-icons/predator.png';
+
 type RankedStatsPageCopy = {
   rankedStatsLabel: string;
   masterPredator: string;
@@ -68,7 +71,7 @@ export function RankedStatsPage({
           {isCompact ? (
             <>
               <div className="ranked-stat-icons">
-                <RankIcon src="/ranked-icons/master.png" fallback="M" />
+                <RankIcon src={MASTER_ICON_SRC} fallback="M" />
               </div>
               <div className="ranked-stat-inline-copy">
                 <span>{compactMasterPredatorLabel}</span>
@@ -81,7 +84,7 @@ export function RankedStatsPage({
             <>
               <div className="ranked-stat-card-top centered">
                 <div className="ranked-stat-icons">
-                  <RankIcon src="/ranked-icons/master.png" fallback="M" />
+                  <RankIcon src={MASTER_ICON_SRC} fallback="M" />
                 </div>
               </div>
               <div className="ranked-stat-primary centered">
@@ -97,7 +100,7 @@ export function RankedStatsPage({
           {isCompact ? (
             <>
               <div className="ranked-stat-icons single">
-                <RankIcon src="/ranked-icons/predator.png" fallback="P" />
+                <RankIcon src={PREDATOR_ICON_SRC} fallback="P" />
               </div>
               <div className="ranked-stat-inline-copy">
                 <span>{compactPredatorCutoffLabel}</span>
@@ -110,7 +113,7 @@ export function RankedStatsPage({
             <>
               <div className="ranked-stat-card-top centered">
                 <div className="ranked-stat-icons single">
-                  <RankIcon src="/ranked-icons/predator.png" fallback="P" />
+                  <RankIcon src={PREDATOR_ICON_SRC} fallback="P" />
                 </div>
               </div>
               <div className="ranked-stat-primary centered">
