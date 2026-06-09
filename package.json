@@ -11,7 +11,8 @@
     "build": "npm run typecheck && electron-vite build",
     "typecheck": "tsc --noEmit",
     "package:win": "npm run generate:icon && npm run build && electron-builder --win dir",
-    "package:portable": "npm run generate:icon && npm run build && electron-builder --win portable"
+    "package:portable": "npm run generate:icon && npm run build && electron-builder --win portable",
+    "package:portable:stable": "node scripts/package-portable-stable.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 import electron from 'electron';
-import { getMapRotation } from './mapService';
+import { getMapRotation, getRankedStats } from './mapService';
 
 const { app, BrowserWindow, ipcMain, screen, shell } = electron;
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
@@ -240,6 +240,7 @@ app.whenReady().then(() => {
   startDockPolling();
 
   ipcMain.handle('map-rotation:get', (_event, force?: boolean) => getMapRotation(Boolean(force)));
+  ipcMain.handle('ranked-stats:get', (_event, force?: boolean) => getRankedStats(Boolean(force)));
   ipcMain.handle('desktop-shortcut:create', () => createDesktopShortcut());
   ipcMain.handle('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window:compact', (event, compact?: boolean) => {

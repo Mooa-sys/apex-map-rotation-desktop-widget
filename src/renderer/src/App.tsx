@@ -1,19 +1,22 @@
-import { AlertTriangle, Clock3, Languages, Minimize2, MonitorUp, RefreshCw, Swords, X } from 'lucide-react';
+import { Languages, Minimize2, MonitorUp, RefreshCw, Swords, X } from 'lucide-react';
 import { flushSync } from 'react-dom';
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import {
   type DisplayLanguage,
   formatCountdown,
-  formatMapName,
   getLocalMapRotation,
   LOCAL_ROTATION_SLOT_MINUTES,
   minutesUntilRangeEnd,
   type RotationResponse
 } from '../../shared/mapRotation';
 import { getApexMapByName } from '../../shared/mapConfig';
+import { type RankedStatsResponse } from '../../shared/rankedStats';
+import { MapPage } from './components/MapPage';
+import { RankedStatsPage } from './components/RankedStatsPage';
 
 const REFRESH_INTERVAL_MS = 60_000;
+const PAGE_SWITCH_DEBOUNCE_MS = 420;
 const LANGUAGE_STORAGE_KEY = 'apex-map-language';
 const FULL_WINDOW_WIDTH = 360;
 const FULL_WINDOW_HEIGHT = 260;
@@ -38,11 +41,22 @@ type LanguageCopy = {
   showingCache: string;
   refreshFailed: string;
   refreshErrorMessage: string;
+  rankedStatsRefreshErrorMessage: string;
   switchLanguage: string;
   createDesktopShortcut: string;
   shortcutCreated: string;
   shortcutFailed: string;
   countdownAria: (value: string) => string;
+  rankedStatsLabel: string;
+  masterPredator: string;
+  predatorCutoff: string;
+  playersUnit: string;
+  rankPointsUnit: string;
+  placeholderData: string;
+  trackerPending: string;
+  unavailable: string;
+  pageMap: string;
+  pageStats: string;
   htmlLang: string;
   timeLocale: string;
 };
@@ -66,11 +80,22 @@ const LANGUAGE_COPY: Record<DisplayLanguage, LanguageCopy> = {
     showingCache: '显示缓存',
     refreshFailed: '刷新失败',
     refreshErrorMessage: '地图数据刷新失败',
+    rankedStatsRefreshErrorMessage: '赛季数据刷新失败',
     switchLanguage: 'Switch to English',
     createDesktopShortcut: '添加桌面快捷方式',
     shortcutCreated: '快捷方式已添加',
     shortcutFailed: '快捷方式添加失败',
     countdownAria: (value) => `地图切换倒计时：${value}`,
+    rankedStatsLabel: '当前赛季数据',
+    masterPredator: '大师/猎杀',
+    predatorCutoff: '猎杀最低分',
+    playersUnit: '人数',
+    rankPointsUnit: 'RP',
+    placeholderData: '占位数据',
+    trackerPending: '待接入 Tracker.gg API',
+    unavailable: '当前不可用',
+    pageMap: '地图页',
+    pageStats: '赛季页',
     htmlLang: 'zh-CN',
     timeLocale: 'zh-CN'
   },
@@ -92,15 +117,28 @@ const LANGUAGE_COPY: Record<DisplayLanguage, LanguageCopy> = {
     showingCache: 'Showing cache',
     refreshFailed: 'Refresh failed',
     refreshErrorMessage: 'Failed to refresh map data',
+    rankedStatsRefreshErrorMessage: 'Failed to refresh ranked stats',
     switchLanguage: '切换到中文',
     createDesktopShortcut: 'Add desktop shortcut',
     shortcutCreated: 'Shortcut added',
     shortcutFailed: 'Shortcut failed',
     countdownAria: (value) => `Map rotation countdown: ${value}`,
+    rankedStatsLabel: 'Current season stats',
+    masterPredator: 'Master/Predator',
+    predatorCutoff: 'Predator Cutoff',
+    playersUnit: 'Players',
+    rankPointsUnit: 'RP',
+    placeholderData: 'Placeholder',
+    trackerPending: 'Tracker.gg API pending',
+    unavailable: 'Unavailable',
+    pageMap: 'Map page',
+    pageStats: 'Stats page',
     htmlLang: 'en',
     timeLocale: 'en-US'
   }
 };
+
+const PAGE_LABEL_KEYS = ['pageMap', 'pageStats'] as const;
 
 async function getMapRotation(force = false): Promise<RotationResponse> {
   if (window.apexMap) {
@@ -114,14 +152,32 @@ async function getMapRotation(force = false): Promise<RotationResponse> {
   };
 }
 
+async function getRankedStats(force = false): Promise<RankedStatsResponse> {
+  if (window.apexMap?.getRankedStats) {
+    return window.apexMap.getRankedStats(force);
+  }
+
+  return {
+    data: null,
+    error: null,
+    isStale: false
+  };
+}
+
 export function App(): JSX.Element {
   const [rotation, setRotation] = useState<RotationResponse>({
     data: null,
     error: null,
     isStale: false
   });
+  const [rankedStats, setRankedStats] = useState<RankedStatsResponse>({
+    data: null,
+    error: null,
+    isStale: false
+  });
   const [language, setLanguage] = useState<DisplayLanguage>(() => getInitialLanguage());
-  const [isLoading, setIsLoading] = useState(true);
+  const [isMapLoading, setIsMapLoading] = useState(true);
+  const [isRankedStatsLoading, setIsRankedStatsLoading] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
   const [isShrinkingToCompact, setIsShrinkingToCompact] = useState(false);
   const [showExpandedChrome, setShowExpandedChrome] = useState(true);
@@ -129,9 +185,11 @@ export function App(): JSX.Element {
   const [clockAnimationKey, setClockAnimationKey] = useState(0);
   const [shortcutStatus, setShortcutStatus] = useState<'created' | 'failed' | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [activePageIndex, setActivePageIndex] = useState(0);
   const isDraggingRef = useRef(false);
   const animatingRef = useRef(false);
   const lastAnimatedBoundsRef = useRef<{ width: number; height: number } | null>(null);
+  const lastPageSwitchAtRef = useRef(0);
   const shellRef = useRef<HTMLElement>(null);
   const t = LANGUAGE_COPY[language];
 
@@ -139,7 +197,7 @@ export function App(): JSX.Element {
     if (animateClock) {
       setClockAnimationKey((key) => key + 1);
     }
-    setIsLoading(true);
+    setIsMapLoading(true);
     try {
       const next = await getMapRotation(force);
       setRotation(next);
@@ -150,9 +208,32 @@ export function App(): JSX.Element {
         isStale: Boolean(previous.data)
       }));
     } finally {
-      setIsLoading(false);
+      setIsMapLoading(false);
     }
   }, [t.refreshErrorMessage]);
+
+  const loadRankedStats = useCallback(async (force = false) => {
+    setIsRankedStatsLoading(true);
+    try {
+      const next = await getRankedStats(force);
+      setRankedStats(next);
+    } catch (error) {
+      setRankedStats((previous) => ({
+        data: previous.data,
+        error: error instanceof Error ? error.message : t.rankedStatsRefreshErrorMessage,
+        isStale: Boolean(previous.data)
+      }));
+    } finally {
+      setIsRankedStatsLoading(false);
+    }
+  }, [t.rankedStatsRefreshErrorMessage]);
+
+  const refreshAll = useCallback(async (force = false, animateClock = false) => {
+    await Promise.allSettled([
+      loadRotation(force, animateClock),
+      loadRankedStats(force)
+    ]);
+  }, [loadRotation, loadRankedStats]);
 
   useEffect(() => {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
@@ -163,14 +244,26 @@ export function App(): JSX.Element {
   useEffect(() => window.apexMap?.onDockPeekChange(setDockPeekEdge), []);
 
   useEffect(() => {
-    loadRotation(true, true);
-    const refreshId = window.setInterval(() => loadRotation(false), REFRESH_INTERVAL_MS);
+    void refreshAll(true, true);
+    const refreshId = window.setInterval(() => {
+      void refreshAll(false);
+    }, REFRESH_INTERVAL_MS);
     const tickId = window.setInterval(() => setNow(new Date()), 30_000);
     return () => {
       window.clearInterval(refreshId);
       window.clearInterval(tickId);
     };
-  }, [loadRotation]);
+  }, [refreshAll]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('compact-mode', isCompact);
+    document.body.classList.toggle('compact-mode', isCompact);
+
+    return () => {
+      document.documentElement.classList.remove('compact-mode');
+      document.body.classList.remove('compact-mode');
+    };
+  }, [isCompact]);
 
   const countdown = useMemo(() => {
     if (!rotation.data) return rotation.error ? t.loadFailed : t.fetching;
@@ -188,25 +281,22 @@ export function App(): JSX.Element {
   const currentMapClass = current ? getCurrentMapClass(current.map) : '';
   const canControlWindow = Boolean(window.apexMap);
   const compactShellActive = isCompact || isShrinkingToCompact;
+  const isRefreshing = isMapLoading || isRankedStatsLoading;
   const shellStyle = undefined satisfies CSSProperties | undefined;
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('compact-mode', isCompact);
-    document.body.classList.toggle('compact-mode', isCompact);
-
-    return () => {
-      document.documentElement.classList.remove('compact-mode');
-      document.body.classList.remove('compact-mode');
-    };
-  }, [isCompact]);
+  const pageTrackStyle = {
+    transform: compactShellActive
+      ? `translate3d(0, -${activePageIndex * 50}%, 0)`
+      : `translate3d(-${activePageIndex * 50}%, 0, 0)`
+  } satisfies CSSProperties;
+  const activeFetchedAt = activePageIndex === 0 ? rotation.data?.fetchedAt : rankedStats.data?.fetchedAt;
 
   const toggleCompactMode = useCallback(() => {
     if (animatingRef.current || !shellRef.current) return;
     animatingRef.current = true;
     const goingCompact = !isCompact;
     const shell = shellRef.current;
-    const expandedPanel = shell.querySelector('.current-panel') as HTMLElement | null;
-    const expandedPanelRect = goingCompact ? expandedPanel?.getBoundingClientRect() ?? null : null;
+    const activePagePanel = shell.querySelector('.page-panel.active') as HTMLElement | null;
+    const expandedPanelRect = goingCompact ? activePagePanel?.getBoundingClientRect() ?? null : null;
 
     if (goingCompact) {
       flushSync(() => {
@@ -222,12 +312,12 @@ export function App(): JSX.Element {
     }
 
     const titlebar = shell.querySelector('.titlebar') as HTMLElement | null;
-    const currentPanel = shell.querySelector('.current-panel') as HTMLElement | null;
-    const nextPanel = shell.querySelector('.next-panel') as HTMLElement | null;
+    const pagesViewport = shell.querySelector('.pages-viewport') as HTMLElement | null;
+    const nextPanel = activePagePanel?.querySelector('.next-panel') as HTMLElement | null;
     const statusbar = shell.querySelector('.statusbar') as HTMLElement | null;
-    const countdownClock = shell.querySelector('.countdown-clock') as HTMLElement | null;
-    const heading = shell.querySelector('.current-copy h1') as HTMLElement | null;
-    const timeRow = shell.querySelector('.time-row') as HTMLElement | null;
+    const countdownClock = activePagePanel?.querySelector('.countdown-clock') as HTMLElement | null;
+    const heading = activePagePanel?.querySelector('h1, h2') as HTMLElement | null;
+    const timeRow = activePagePanel?.querySelector('.time-row') as HTMLElement | null;
     const initialWidth = goingCompact ? FULL_WINDOW_WIDTH : COMPACT_WINDOW_WIDTH;
     const initialHeight = goingCompact ? FULL_WINDOW_HEIGHT : COMPACT_WINDOW_HEIGHT;
     const targetWidth = goingCompact ? COMPACT_WINDOW_WIDTH : FULL_WINDOW_WIDTH;
@@ -244,7 +334,8 @@ export function App(): JSX.Element {
     const cleanupAnimatedStyles = (): void => {
       const animatedElements = [
         shell,
-        currentPanel,
+        pagesViewport,
+        activePagePanel,
         titlebar,
         nextPanel,
         statusbar,
@@ -277,9 +368,9 @@ export function App(): JSX.Element {
         width: initialWidth,
         height: initialHeight
       });
-      if (currentPanel && expandedPanelRect) {
-        const compactPanelRect = currentPanel.getBoundingClientRect();
-        gsap.set(currentPanel, {
+      if (activePagePanel && expandedPanelRect) {
+        const compactPanelRect = activePagePanel.getBoundingClientRect();
+        gsap.set(activePagePanel, {
           width: expandedPanelRect.width,
           height: expandedPanelRect.height,
           x: expandedPanelRect.left - compactPanelRect.left,
@@ -302,8 +393,8 @@ export function App(): JSX.Element {
         overwrite: 'auto'
       }, 0);
 
-      if (currentPanel) {
-        tl.to(currentPanel, {
+      if (activePagePanel) {
+        tl.to(activePagePanel, {
           x: 0,
           y: 0,
           width: COMPACT_WINDOW_WIDTH - 12,
@@ -354,8 +445,8 @@ export function App(): JSX.Element {
         rowGap: 0,
         borderRadius: 18
       });
-      if (currentPanel) {
-        gsap.set(currentPanel, {
+      if (activePagePanel) {
+        gsap.set(activePagePanel, {
           y: -18,
           scaleX: 0.965,
           scaleY: 0.8,
@@ -396,8 +487,8 @@ export function App(): JSX.Element {
         overwrite: 'auto'
       }, 0.02);
 
-      if (currentPanel) {
-        tl.to(currentPanel, {
+      if (activePagePanel) {
+        tl.to(activePagePanel, {
           y: 0,
           scaleX: 1,
           scaleY: 1,
@@ -442,133 +533,193 @@ export function App(): JSX.Element {
     if (!isCompact || event.button !== 0) return;
     isDraggingRef.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
-    window.apexMap?.startDrag();
+    void window.apexMap?.startDrag();
   }, [isCompact]);
 
   const moveCompactDrag = useCallback(() => {
     if (!isDraggingRef.current) return;
-    window.apexMap?.moveDrag();
+    void window.apexMap?.moveDrag();
   }, []);
 
   const endCompactDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
-    window.apexMap?.endDrag();
+    void window.apexMap?.endDrag();
   }, []);
 
-  return (
-    <main ref={shellRef} className={`widget-shell ${compactShellActive ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`} style={shellStyle}>
-      {showExpandedChrome && <header className="titlebar">
-        <div className="drag-region">
-          <Swords aria-hidden="true" size={16} />
-          <span>{t.appTitle}</span>
-        </div>
-        <div className="window-actions">
-          <button
-            aria-label={t.switchLanguage}
-            className="icon-button"
-            title={t.switchLanguage}
-            onClick={toggleLanguage}
-          >
-            <Languages size={15} />
-          </button>
-          <button
-            aria-label={t.createDesktopShortcut}
-            className="icon-button"
-            disabled={!canControlWindow}
-            title={t.createDesktopShortcut}
-            onClick={createDesktopShortcut}
-          >
-            <MonitorUp size={15} />
-          </button>
-          <button
-            aria-label={t.compactMode}
-            className="icon-button"
-            title={t.compactMode}
-            onClick={toggleCompactMode}
-          >
-            <Minimize2 size={15} />
-          </button>
-          <button
-            aria-label={t.close}
-            className="icon-button close"
-            disabled={!canControlWindow}
-            title={t.close}
-            onClick={() => window.apexMap?.close()}
-          >
-            <X size={15} />
-          </button>
-        </div>
-      </header>}
+  const switchPageByDelta = useCallback((delta: number) => {
+    if (animatingRef.current) return;
+    const nowTime = Date.now();
+    if (nowTime - lastPageSwitchAtRef.current < PAGE_SWITCH_DEBOUNCE_MS) return;
+    if (Math.abs(delta) < 12) return;
+    lastPageSwitchAtRef.current = nowTime;
+    setActivePageIndex((previous) => clampPageIndex(previous + (delta > 0 ? 1 : -1)));
+  }, []);
 
-      <section
-        className={`current-panel ${currentMapClass}`}
-        aria-live="polite"
-        onPointerDown={startCompactDrag}
-        onPointerMove={moveCompactDrag}
-        onPointerUp={endCompactDrag}
-        onPointerCancel={endCompactDrag}
-        onDoubleClick={() => {
-          if (isCompact) toggleCompactMode();
-        }}
-      >
-        <div className="current-copy">
-          <div className="section-label">{t.currentMap}</div>
-          <h1>{current ? formatMapName(current.map, language) : rotation.error ? t.noMapData : t.loading}</h1>
-          {showExpandedChrome && <div className="time-row">
-            <Clock3 size={15} />
-            <span>{current ? `${current.start} - ${current.end}` : rotation.error ?? '--:-- - --:--'}</span>
-          </div>}
+  const handlePageWheel = useCallback((event: React.WheelEvent<HTMLElement>) => {
+    const primaryDelta = compactShellActive
+      ? event.deltaY
+      : Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      ? event.deltaX
+      : event.deltaY;
+
+    if (Math.abs(primaryDelta) < 12) return;
+    event.preventDefault();
+    switchPageByDelta(primaryDelta);
+  }, [compactShellActive, switchPageByDelta]);
+
+  return (
+    <main
+      ref={shellRef}
+      className={`widget-shell ${compactShellActive ? 'compact' : ''} ${dockPeekEdge ? `peek-${dockPeekEdge}` : ''}`}
+      style={shellStyle}
+    >
+      {showExpandedChrome && (
+        <header className="titlebar">
+          <div className="drag-region">
+            <Swords aria-hidden="true" size={16} />
+            <span>{t.appTitle}</span>
+          </div>
+          <div className="window-actions">
+            <button
+              aria-label={t.switchLanguage}
+              className="icon-button"
+              title={t.switchLanguage}
+              onClick={toggleLanguage}
+            >
+              <Languages size={15} />
+            </button>
+            <button
+              aria-label={t.createDesktopShortcut}
+              className="icon-button"
+              disabled={!canControlWindow}
+              title={t.createDesktopShortcut}
+              onClick={createDesktopShortcut}
+            >
+              <MonitorUp size={15} />
+            </button>
+            <button
+              aria-label={t.compactMode}
+              className="icon-button"
+              title={t.compactMode}
+              onClick={toggleCompactMode}
+            >
+              <Minimize2 size={15} />
+            </button>
+            <button
+              aria-label={t.close}
+              className="icon-button close"
+              disabled={!canControlWindow}
+              title={t.close}
+              onClick={() => window.apexMap?.close()}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </header>
+      )}
+
+      <section className="pages-viewport" onWheel={handlePageWheel}>
+        <div
+          className={`pages-track ${compactShellActive ? 'vertical' : 'horizontal'}`}
+          style={pageTrackStyle}
+        >
+          <MapPage
+            isActive={activePageIndex === 0}
+            current={current}
+            currentMapClass={currentMapClass}
+            next={next}
+            rotationError={rotation.error}
+            language={language}
+            showExpandedChrome={showExpandedChrome}
+            copy={t}
+            countdown={
+              <CountdownClock
+                animationKey={clockAnimationKey}
+                minutes={countdownMinutes}
+                fallback={countdown}
+                ariaLabel={t.countdownAria(countdown)}
+                language={language}
+                onDoubleClick={() => {
+                  if (isCompact) toggleCompactMode();
+                }}
+              />
+            }
+            onCurrentPanelPointerDown={startCompactDrag}
+            onCurrentPanelPointerMove={moveCompactDrag}
+            onCurrentPanelPointerUp={endCompactDrag}
+            onCurrentPanelPointerCancel={endCompactDrag}
+            onCurrentPanelDoubleClick={() => {
+              if (isCompact) toggleCompactMode();
+            }}
+          />
+
+          <RankedStatsPage
+            data={rankedStats.data}
+            error={rankedStats.error}
+            language={language}
+            isCompact={compactShellActive}
+            isActive={activePageIndex === 1}
+            copy={t}
+            onPointerDown={startCompactDrag}
+            onPointerMove={moveCompactDrag}
+            onPointerUp={endCompactDrag}
+            onPointerCancel={endCompactDrag}
+            onDoubleClick={() => {
+              if (isCompact) toggleCompactMode();
+            }}
+          />
         </div>
-        <CountdownClock
-          animationKey={clockAnimationKey}
-          minutes={countdownMinutes}
-          fallback={countdown}
-          ariaLabel={t.countdownAria(countdown)}
-          language={language}
-          onDoubleClick={() => {
-            if (isCompact) toggleCompactMode();
-          }}
-        />
+
+        {compactShellActive && (
+          <div className="page-indicators" aria-hidden="true">
+            {PAGE_LABEL_KEYS.map((key, index) => (
+              <span
+                key={key}
+                className={`page-indicator ${activePageIndex === index ? 'active' : ''}`}
+                title={t[key]}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
-      {showExpandedChrome && <section className="next-panel">
-        <div>
-          <div className="section-label">{t.nextMap}</div>
-          <strong>{next ? formatMapName(next.map, language) : t.waitingData}</strong>
-        </div>
-        <span>{next ? t.startsAt(next.start) : '--:--'}</span>
-      </section>}
-
-      {showExpandedChrome && <footer className="statusbar">
-        <button
-          aria-label={t.refreshMapData}
-          className="refresh-button"
-          title={t.refreshMapData}
-          onClick={() => loadRotation(true, true)}
-        >
-          <RefreshCw className={isLoading ? 'spinning' : ''} size={14} />
-        </button>
-        <span>
-          {shortcutStatus
-            ? shortcutStatus === 'created'
-              ? t.shortcutCreated
-              : t.shortcutFailed
-            : rotation.data
-            ? t.updatedAt(new Date(rotation.data.fetchedAt).toLocaleTimeString(t.timeLocale, {
-                hour: '2-digit',
-                minute: '2-digit'
-              }))
-            : t.notUpdated}
-        </span>
-        {rotation.error && (
-          <span className="error" title={rotation.error}>
-            <AlertTriangle size={13} />
-            {rotation.isStale ? t.showingCache : t.refreshFailed}
+      {showExpandedChrome && (
+        <footer className="statusbar">
+          <button
+            aria-label={t.refreshMapData}
+            className="refresh-button"
+            title={t.refreshMapData}
+            onClick={() => {
+              void refreshAll(true, true);
+            }}
+          >
+            <RefreshCw className={isRefreshing ? 'spinning' : ''} size={14} />
+          </button>
+          <span>
+            {shortcutStatus
+              ? shortcutStatus === 'created'
+                ? t.shortcutCreated
+                : t.shortcutFailed
+              : activeFetchedAt
+              ? t.updatedAt(new Date(activeFetchedAt).toLocaleTimeString(t.timeLocale, {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }))
+              : t.notUpdated}
           </span>
-        )}
-      </footer>}
+          <div className="page-indicators in-statusbar" aria-hidden="true">
+            {PAGE_LABEL_KEYS.map((key, index) => (
+              <span
+                key={key}
+                className={`page-indicator ${activePageIndex === index ? 'active' : ''}`}
+                title={t[key]}
+              />
+            ))}
+          </div>
+        </footer>
+      )}
     </main>
   );
 }
@@ -699,4 +850,8 @@ function getCurrentMapClass(map: string): string {
 function getInitialLanguage(): DisplayLanguage {
   const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
   return storedLanguage === 'en' || storedLanguage === 'zh' ? storedLanguage : 'zh';
+}
+
+function clampPageIndex(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }

@@ -1,0 +1,9 @@
+{
+  "name": "tracker-proxy-aliyun-fc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aliyun Function Compute HTTP server for Apex ranked stats proxy.",
+  "scripts": {
+    "start": "node index.js"
+  }
+}

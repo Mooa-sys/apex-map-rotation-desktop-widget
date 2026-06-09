@@ -1,11 +1,14 @@
 import electron from 'electron';
 import type { RotationResponse } from '../shared/mapRotation';
+import type { RankedStatsResponse } from '../shared/rankedStats';
 
 const { contextBridge, ipcRenderer } = electron;
 
 const api = {
   getMapRotation: (force = false): Promise<RotationResponse> =>
     ipcRenderer.invoke('map-rotation:get', force),
+  getRankedStats: (force = false): Promise<RankedStatsResponse> =>
+    ipcRenderer.invoke('ranked-stats:get', force),
   createDesktopShortcut: (): Promise<{ success: boolean; path: string; error: string | null }> =>
     ipcRenderer.invoke('desktop-shortcut:create'),
   minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
