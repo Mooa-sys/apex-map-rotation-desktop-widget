@@ -3,7 +3,8 @@ import { getLocalMapRotation, type RotationResponse } from '../shared/mapRotatio
 import { type RankedStatsResponse, type RankedStatsData } from '../shared/rankedStats';
 
 const LOCAL_WORKER_URL = 'http://127.0.0.1:8787/ranked-stats';
-const PRODUCTION_WORKER_URL = 'https://apex-tracker-proxy.mmfan404.workers.dev/ranked-stats';
+const PRODUCTION_CLOUDFLARE_WORKER_URL = 'https://apex-tracker-proxy.mmfan404.workers.dev/ranked-stats';
+const PRODUCTION_ALIYUN_FC_WORKER_URL = 'https://apex-map-exhidqgabr.cn-shenzhen.fcapp.run/ranked-stats';
 const RANKED_STATS_CACHE_TTL_MS = 5 * 60_000;
 const WORKER_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -32,8 +33,8 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
 
   rankedStatsInFlight = (async () => {
     try {
-      const workerUrl = resolveRankedStatsWorkerUrl();
-      if (!workerUrl) {
+      const workerUrls = resolveRankedStatsWorkerUrls();
+      if (workerUrls.length === 0) {
         return {
           data: null,
           error: 'Missing ranked stats Worker URL.',
@@ -41,7 +42,7 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
         } satisfies RankedStatsResponse;
       }
 
-      const data = await fetchRankedStatsFromWorker(workerUrl);
+      const data = await fetchRankedStatsFromWorkerUrls(workerUrls);
       const nextResponse = {
         data,
         error: null,
@@ -80,15 +81,38 @@ export async function getRankedStats(force = false): Promise<RankedStatsResponse
   return rankedStatsInFlight;
 }
 
-function resolveRankedStatsWorkerUrl(): string {
+function parseRankedStatsWorkerUrls(value: string): string[] {
+  return value
+    .split(/[\r\n,]+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => /^https?:\/\//i.test(entry));
+}
+
+function resolveRankedStatsWorkerUrls(): string[] {
   const direct = process.env.RANKED_STATS_WORKER_URL?.trim();
-  if (direct) return direct;
+  if (direct) return parseRankedStatsWorkerUrls(direct);
 
   if (!app.isPackaged) {
-    return LOCAL_WORKER_URL;
+    return [LOCAL_WORKER_URL];
   }
 
-  return PRODUCTION_WORKER_URL;
+  return [PRODUCTION_CLOUDFLARE_WORKER_URL, PRODUCTION_ALIYUN_FC_WORKER_URL].filter((url) =>
+    /^https?:\/\//i.test(url)
+  );
+}
+
+async function fetchRankedStatsFromWorkerUrls(workerUrls: string[]): Promise<RankedStatsData> {
+  const failures: string[] = [];
+
+  for (const workerUrl of workerUrls) {
+    try {
+      return await fetchRankedStatsFromWorker(workerUrl);
+    } catch (error) {
+      failures.push(`${workerUrl}: ${error instanceof Error ? error.message : 'Unknown worker error.'}`);
+    }
+  }
+
+  throw new Error(`All ranked stats Worker endpoints failed. ${failures.join(' | ')}`);
 }
 
 async function fetchRankedStatsFromWorker(workerUrl: string): Promise<RankedStatsData> {

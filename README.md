@@ -112,9 +112,14 @@ Broken Moon -> Storm Point -> Olympus
   - 格式优先 `PNG` 透明背景；如果你有矢量资源，也可以改成 `SVG`
   - 推荐分辨率 `128x128` 或 `256x256`
   - 图标主体尽量居中，四周预留 8% 到 12% 安全边距
-- 当前赛季数据页会由 Electron 主进程请求 Cloudflare Worker 的 `/ranked-stats` 接口。
+- 当前赛季数据页会优先请求 Cloudflare Worker 的 `/ranked-stats` 接口，并支持继续追加阿里云 FC 作为生产环境备用地址。
 - 开发环境默认使用本地 Worker 地址：`http://127.0.0.1:8787/ranked-stats`
+- 默认生产地址顺序：
+  - `https://apex-tracker-proxy.mmfan404.workers.dev/ranked-stats`
+  - `https://apex-map-exhidqgabr.cn-shenzhen.fcapp.run/ranked-stats`
 - 如需覆盖默认地址，仍可使用环境变量 `RANKED_STATS_WORKER_URL`
+- `RANKED_STATS_WORKER_URL` 支持单个 URL，也支持按顺序填写多个 URL，使用英文逗号或换行分隔。
+- 阿里云 FC 上传版本目录：`workers/tracker-proxy/aliyun-fc/`
 
 ## 项目结构
 

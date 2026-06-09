@@ -10,12 +10,17 @@ coverage
 .trae/
 .vscode/
 .idea/
+.DS_Store
 Thumbs.db
 Desktop.ini
 *.tmp
 *.temp
 *.orig
+.env
+.env.local
+.env.*.local
 commit_notice.md
 taggapi.env
 workers/tracker-proxy/.dev.vars
+workers/tracker-proxy/.local-xdg/
 workers/tracker-proxy/.wrangler
